@@ -1,0 +1,14 @@
+# WoW SavedVariables (генерируются игрой, не часть исходников)
+**/SavedVariables/
+*.bak
+
+# Сборочные артефакты
+*.zip
+
+# Логи
+*.log
+
+# Системный мусор
+.DS_Store
+Thumbs.db
+desktop.ini

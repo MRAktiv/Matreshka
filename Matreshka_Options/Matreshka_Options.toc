@@ -1,0 +1,17 @@
+## Interface: 20505
+## Title: Matreshka_Options
+## Notes: Optional language|nChinese (simplified)|nChinese (traditional)
+## IconTexture: Interface\AddOns\Matreshka\Icons\matreshka.png
+## Author: MRAktiv
+## Version: 2.0.0
+## LoadOnDemand: 1
+## Dependencies: Matreshka
+
+Database/Items/cn.lua
+Database/Items/tw.lua
+Database/Spells/cn.lua
+Database/Spells/tw.lua
+Database/Npcs/cn.lua
+Database/Npcs/tw.lua
+Database/Quests/cn.lua
+Database/Quests/tw.lua

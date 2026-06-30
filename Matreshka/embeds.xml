@@ -1,0 +1,7 @@
+<!-- Matreshka — внутриигровой русификатор WoW. © 2026 MRAktiv. Все права защищены.
+     Несанкционированное копирование и распространение запрещено. -->
+<Ui xmlns="http://www.blizzard.com/wow/ui/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+    <Script file="Libs\LibStub\LibStub.lua"/>
+</Ui>
