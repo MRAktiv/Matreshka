@@ -1,9 +1,22 @@
 Copyright (c) 2026 MRAktiv. All rights reserved.
 
-This software and its source code are proprietary.
-No permission is granted to use, copy, modify, merge, publish, distribute,
-sublicense, or sell copies of this software without the prior written
-permission of the copyright holder.
+The original source code of this add-on — the "Matreshka" and "Matreshka_Options"
+Lua/XML files authored by MRAktiv — is proprietary. No permission is granted to use,
+copy, modify, merge, publish, distribute, sublicense, or sell copies of that code
+without the prior written permission of the copyright holder.
 
-The bundled font files remain the property of their respective owners and
-are included for personal use only.
+The following bundled components are NOT covered by the notice above and remain the
+property of their respective owners:
+
+  * Libs/LibStub and Libs/!LibUIDropDownMenu — third-party libraries, embedded
+    unmodified and distributed under their own original licenses. See Libs/NOTICE.md
+    for authors and sources.
+
+  * Database/ — official World of Warcraft localization text, and
+    Fonts/FrizQuadrataCTT.ttf — the game font. These are the intellectual property of
+    Blizzard Entertainment, Inc., bundled solely to display the game's own translations
+    inside the client.
+
+This add-on is an unofficial, fan-made project and is not affiliated with, endorsed by,
+or sponsored by Blizzard Entertainment, Inc. World of Warcraft and Blizzard
+Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc.

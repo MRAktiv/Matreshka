@@ -68,6 +68,17 @@ Matreshka_Options/      — дополнительный пакет языков
 Базы переводов хранятся в позиционном формате `Matreshka_DB["type:lang"][id] = { ... }`
 и грузятся выборочно по выбранному языку, что заметно снижает потребление памяти.
 
+## Сторонние компоненты
+
+- **LibStub** и **LibUIDropDownMenu** — встроенные библиотеки, распространяются под
+  собственными лицензиями (см. [Matreshka/Libs/NOTICE.md](Matreshka/Libs/NOTICE.md)).
+- **База переводов** (`Database/`) и **шрифт** `FrizQuadrataCTT.ttf` — официальная
+  локализация и шрифт World of Warcraft, собственность Blizzard Entertainment.
+
 ## Лицензия
 
-© MRAktiv. Все права защищены. См. [LICENSE](LICENSE).
+Собственный код аддона © 2026 MRAktiv, все права защищены — см. [LICENSE](LICENSE).
+Встроенные библиотеки и ассеты Blizzard остаются за своими владельцами.
+
+Неофициальный фанатский проект. Не связан с Blizzard Entertainment и не одобрен ею.
+World of Warcraft и Blizzard Entertainment — товарные знаки Blizzard Entertainment, Inc.
