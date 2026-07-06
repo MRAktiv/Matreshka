@@ -874,3 +874,146 @@ if SpellBookFrame then
         end
     end)
 end
+
+-- Gossip (NPC dialogue). Gossip greeting bodies and their clickable options are server-driven in
+-- TBC: the client holds no ID for them at runtime, only the rendered English text. So they are
+-- translated by matching that text (whitespace-collapsed, case kept) against a flat English ->
+-- translated map built offline from the /mtscan corpus. Body and options are replaced in place.
+local function NormalizeGossip(text)
+    local normalized = NormalizeForLookup(text)
+
+    if not normalized or normalized == "" then
+        return nil
+    end
+
+    -- Match regardless of how paragraph breaks or indentation were captured.
+    normalized = normalized:gsub("%s+", " ")
+
+    -- The server substitutes $N with the player's name before sending; fold it back to a token so
+    -- one entry serves every character and the scan corpus is not polluted per-player.
+    local playerName = UnitName and UnitName("player")
+
+    if playerName and #playerName >= 3 then
+        normalized = normalized:gsub(escapeMagic(playerName), "$N")
+    end
+
+    return normalized
+end
+
+local function LookupGossip(liveText)
+    local languageCode = MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"]
+    local bucket = Matreshka_Gossip and languageCode and Matreshka_Gossip[languageCode]
+
+    if not bucket then
+        return nil, nil
+    end
+
+    local key = NormalizeGossip(liveText)
+
+    if not key then
+        return nil, nil
+    end
+
+    return bucket[key], key
+end
+
+local function RecordMissingGossip(key)
+    if not key or not (MatreshkaOptions and MatreshkaOptions["SCAN_MISSING"]) then
+        return
+    end
+
+    MatreshkaMissing = MatreshkaMissing or {}
+    local bucket = "gossip:" .. (MatreshkaOptions["SELECTED_LANGUAGE"] or "ru")
+    MatreshkaMissing[bucket] = MatreshkaMissing[bucket] or {}
+    MatreshkaMissing[bucket][key] = true
+end
+
+-- This client renders gossip through a ScrollBox: GossipFrame:Update() calls C_GossipInfo.GetText()
+-- / GetOptions() and feeds a DataProvider whose elements the ScrollBox lays out (greeting body via
+-- GossipGreetingTextMixin, options via GossipOptionButtonMixin). We translate the element data in
+-- place, then re-set the provider so the ScrollBox recomputes row heights against the Russian text
+-- (setting the FontString alone would clip, since its row extent was measured from the English).
+local GOSSIP_TYPE_OPTION = GOSSIP_BUTTON_TYPE_OPTION or 3
+
+local function TranslateGossipElement(element)
+    if not element then
+        return false
+    end
+
+    -- Greeting body: element.text is what the ScrollBox measures and shows.
+    if element.greetingTextFrame and element.text then
+        local translated, key = LookupGossip(element.text)
+
+        if translated then
+            element.text = translated
+            return true
+        end
+
+        RecordMissingGossip(key)
+    -- Clickable gossip option (quest-title buttons are skipped — quests translate elsewhere).
+    elseif element.info and element.info.name and element.buttonType == GOSSIP_TYPE_OPTION then
+        local translated, key = LookupGossip(element.info.name)
+
+        if translated then
+            element.info.name = translated
+            return true
+        end
+
+        RecordMissingGossip(key)
+    end
+
+    return false
+end
+
+local function TranslateGossipFrame(frame)
+    if not (MatreshkaOptions and MatreshkaOptions["GOSSIP_TRANSLATIONS"]) then
+        return
+    end
+
+    if frame.matreshkaTranslating then
+        return
+    end
+
+    local panel = frame and frame.GreetingPanel
+    local scrollBox = panel and panel.ScrollBox
+    local dataProvider = scrollBox and scrollBox.GetDataProvider and scrollBox:GetDataProvider()
+
+    if not (dataProvider and dataProvider.ForEach) then
+        return
+    end
+
+    local changed = false
+
+    dataProvider:ForEach(function(element)
+        if TranslateGossipElement(element) then
+            changed = true
+        end
+    end)
+
+    if changed then
+        -- Re-lay out with recomputed extents. Guarded against re-entry; SetDataProvider does not
+        -- call Update, so the hook cannot recurse.
+        frame.matreshkaTranslating = true
+        scrollBox:SetDataProvider(dataProvider, ScrollBoxConstants and ScrollBoxConstants.RetainScrollPosition)
+        frame.matreshkaTranslating = false
+    end
+end
+
+-- GossipFrame lives in Blizzard_UIPanels_Game; hook its Update once it exists (it may load on
+-- demand, so also retry on ADDON_LOADED / PLAYER_LOGIN). Update runs after every gossip refresh,
+-- including option clicks that open another page.
+local function InstallGossipHook()
+    if GossipFrame and type(GossipFrame.Update) == "function" and not GossipFrame.matreshkaHooked then
+        GossipFrame.matreshkaHooked = true
+        hooksecurefunc(GossipFrame, "Update", TranslateGossipFrame)
+    end
+end
+
+InstallGossipHook()
+
+if not (GossipFrame and GossipFrame.matreshkaHooked) then
+    local gossipInstaller = CreateFrame("Frame")
+    gossipInstaller:RegisterEvent("ADDON_LOADED")
+    gossipInstaller:RegisterEvent("PLAYER_LOGIN")
+    gossipInstaller:SetScript("OnEvent", InstallGossipHook)
+end

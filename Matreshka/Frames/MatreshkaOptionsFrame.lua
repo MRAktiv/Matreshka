@@ -105,6 +105,7 @@ local function getDefaultOptions(optionsTranslations)
         SPELL_TRANSLATIONS_ONLY_DISPLAY_NAME = false,
         NPC_TRANSLATIONS = true,
         NPC_TRANSLATIONS_ONLY_DISPLAY_NAME = false,
+        GOSSIP_TRANSLATIONS = true,
         SHOW_IDS = false,
         SCAN_MISSING = false,
         SELECTED_LANGUAGE = 'ru',
@@ -213,10 +214,14 @@ local function InitializeOptions()
         optionsTranslations["questText"], "QUEST_TRANSLATIONS")
     questCheckbox:SetPoint("TOPLEFT", npcOnlyNameCheckbox, "BOTTOMLEFT", -22, 2)
 
+    local gossipCheckbox = CreateOptionCheckbox(optionsContainer, "MatreshkaGossipCheckbox",
+        optionsTranslations["gossipText"], "GOSSIP_TRANSLATIONS")
+    gossipCheckbox:SetPoint("TOPLEFT", questCheckbox, "BOTTOMLEFT", 0, 2)
+
     -- Чекбокс показа ID (предметы/квесты/заклинания/NPC) — чтобы игрок мог прислать номер при ошибке перевода
     showIdsCheckbox = CreateOptionCheckbox(optionsContainer, "MatreshkaShowIDsCheckbox",
         optionsTranslations["showIdsText"], "SHOW_IDS")
-    showIdsCheckbox:SetPoint("TOPLEFT", questCheckbox, "BOTTOMLEFT", 0, -10)
+    showIdsCheckbox:SetPoint("TOPLEFT", gossipCheckbox, "BOTTOMLEFT", 0, -10)
 
     -- Кнопка открытия окна экспорта правок перевода (окно живёт в MatreshkaEditorFrame.lua)
     local exportButton = CreateFrame("Button", nil, optionsContainer, "UIPanelButtonTemplate")
@@ -305,7 +310,7 @@ SlashCmdList["MATRESHKA_SCAN"] = function()
     MatreshkaOptions["SCAN_MISSING"] = not MatreshkaOptions["SCAN_MISSING"]
 
     if MatreshkaOptions["SCAN_MISSING"] then
-        print("|cFFFFD100Matreshka|r: сбор пропусков ВКЛЮЧЁН. Открой книгу заклинаний и все ветки талантов, наводись на предметы/NPC. Потом набери /mtmissing.")
+        print("|cFFFFD100Matreshka|r: сбор пропусков ВКЛЮЧЁН. Открой книгу заклинаний и все ветки талантов, наводись на предметы/NPC, поговори с NPC (диалоги). Потом набери /mtmissing.")
     else
         print("|cFFFFD100Matreshka|r: сбор пропусков выключен.")
     end
