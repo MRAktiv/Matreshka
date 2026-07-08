@@ -597,6 +597,49 @@ local function HandleUnitTooltip(tooltip)
     TranslateAndRecord(tooltip, cacheKey, BuildEntityMap(englishEntry, translatedEntry, ShowOnlyTitleTranslation("npc")))
 end
 
+-- Player-specific quest tokens. The datamined source renders WoW's $N/$C/$R and gender tokens as
+-- readable brackets, and the translation localized them: <имя> (name), <класс> (class), <раса>
+-- (race), and gender pairs <муж/жен>. WoW does not expand these in addon-supplied text, so the
+-- live character's values are substituted here. Class and race stay in nominative case.
+local QUEST_TOKEN_CLASS = {
+    WARRIOR = "воин", PALADIN = "паладин", HUNTER = "охотник", ROGUE = "разбойник",
+    PRIEST = "жрец", SHAMAN = "шаман", MAGE = "маг", WARLOCK = "чернокнижник", DRUID = "друид",
+}
+
+local QUEST_TOKEN_RACE = {
+    Human = "человек", Dwarf = "дворф", NightElf = "ночной эльф", Gnome = "гном",
+    Draenei = "дреней", Orc = "орк", Scourge = "нежить", Tauren = "таурен",
+    Troll = "тролль", BloodElf = "эльф крови",
+}
+
+local function ApplyPlayerTokens(text)
+    if not text or not text:find("[<%$]") then
+        return text
+    end
+
+    local female = UnitSex("player") == 3
+
+    -- Gender pairs: localized <masc/fem> and the native $Gmasc:fem; form.
+    text = text:gsub("<([^<>/]-)/([^<>]-)>", function(masc, fem)
+        return ((female and fem or masc):gsub(":%a$", ""))
+    end)
+    text = text:gsub("%$[Gg](.-):(.-);", function(masc, fem)
+        return female and fem or masc
+    end)
+
+    local name = UnitName("player") or ""
+    local className, classToken = UnitClass("player")
+    local raceName, raceToken = UnitRace("player")
+    local class = QUEST_TOKEN_CLASS[classToken] or className or ""
+    local race = QUEST_TOKEN_RACE[raceToken] or raceName or ""
+
+    text = text:gsub("<имя>", name):gsub("<name>", name):gsub("%$[Nn]", name)
+    text = text:gsub("<класс>", class):gsub("<class>", class):gsub("%$[Cc]", class)
+    text = text:gsub("<раса>", race):gsub("<race>", race):gsub("%$[Rr]", race)
+
+    return text
+end
+
 -- Quest translation: substitute the native quest frame text with the translation in place
 local function GetReplacementForCurrentQuestGiver(field)
     if not MatreshkaOptions
@@ -607,7 +650,7 @@ local function GetReplacementForCurrentQuestGiver(field)
     local questData = GetDataByID("quest", GetQuestID())
 
     if questData and questData[field] and questData[field] ~= "" then
-        return questData[field]
+        return ApplyPlayerTokens(questData[field])
     end
 
     return nil
@@ -646,11 +689,11 @@ if GetQuestLogQuestText then
 
                 if questData then
                     if questData.description and questData.description ~= "" then
-                        description = questData.description
+                        description = ApplyPlayerTokens(questData.description)
                     end
 
                     if questData.objective and questData.objective ~= "" then
-                        objective = questData.objective
+                        objective = ApplyPlayerTokens(questData.objective)
                     end
                 end
             end
@@ -674,7 +717,7 @@ if QuestLog_Update then
             local questData = GetDataByID("quest", select(8, GetQuestLogTitle(selectedQuestIndex)))
 
             if questData and questData.title and questData.title ~= "" then
-                QuestLogQuestTitle:SetText(questData.title)
+                QuestLogQuestTitle:SetText(ApplyPlayerTokens(questData.title))
             end
         end
     end)
@@ -708,7 +751,7 @@ if QuestInfo_Display then
             end
 
             local questData = GetDataByID("quest", GetQuestID())
-            local rewardsIntro = questData and questData.rewards and questData.rewards:match("[^\r\n]+")
+            local rewardsIntro = questData and questData.rewards and ApplyPlayerTokens(questData.rewards):match("[^\r\n]+")
 
             if rewardsIntro then
                 local chooseText = rewardsFrame.ItemChooseText or _G["QuestInfoRewardsFrameItemChooseText"]
@@ -945,7 +988,7 @@ local function TranslateGossipElement(element)
         local translated, key = LookupGossip(element.text)
 
         if translated then
-            element.text = translated
+            element.text = ApplyPlayerTokens(translated)
             return true
         end
 
@@ -955,7 +998,7 @@ local function TranslateGossipElement(element)
         local translated, key = LookupGossip(element.info.name)
 
         if translated then
-            element.info.name = translated
+            element.info.name = ApplyPlayerTokens(translated)
             return true
         end
 
