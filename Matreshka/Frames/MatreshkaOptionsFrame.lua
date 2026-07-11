@@ -106,6 +106,7 @@ local function getDefaultOptions(optionsTranslations)
         NPC_TRANSLATIONS = true,
         NPC_TRANSLATIONS_ONLY_DISPLAY_NAME = false,
         GOSSIP_TRANSLATIONS = true,
+        NPC_CHAT_TRANSLATIONS = true,
         SHOW_IDS = false,
         SCAN_MISSING = false,
         SELECTED_LANGUAGE = 'ru',
@@ -218,10 +219,14 @@ local function InitializeOptions()
         optionsTranslations["gossipText"], "GOSSIP_TRANSLATIONS")
     gossipCheckbox:SetPoint("TOPLEFT", questCheckbox, "BOTTOMLEFT", 0, 2)
 
+    local npcChatCheckbox = CreateOptionCheckbox(optionsContainer, "MatreshkaNpcChatCheckbox",
+        optionsTranslations["npcChatText"], "NPC_CHAT_TRANSLATIONS")
+    npcChatCheckbox:SetPoint("TOPLEFT", gossipCheckbox, "BOTTOMLEFT", 0, 2)
+
     -- Чекбокс показа ID (предметы/квесты/заклинания/NPC) — чтобы игрок мог прислать номер при ошибке перевода
     showIdsCheckbox = CreateOptionCheckbox(optionsContainer, "MatreshkaShowIDsCheckbox",
         optionsTranslations["showIdsText"], "SHOW_IDS")
-    showIdsCheckbox:SetPoint("TOPLEFT", gossipCheckbox, "BOTTOMLEFT", 0, -10)
+    showIdsCheckbox:SetPoint("TOPLEFT", npcChatCheckbox, "BOTTOMLEFT", 0, -10)
 
     -- Кнопка открытия окна экспорта правок перевода (окно живёт в MatreshkaEditorFrame.lua)
     local exportButton = CreateFrame("Button", nil, optionsContainer, "UIPanelButtonTemplate")

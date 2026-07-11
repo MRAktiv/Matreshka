@@ -1060,3 +1060,89 @@ if not (GossipFrame and GossipFrame.matreshkaHooked) then
     gossipInstaller:RegisterEvent("PLAYER_LOGIN")
     gossipInstaller:SetScript("OnEvent", InstallGossipHook)
 end
+
+-- NPC chat (monster / boss lines). NPC and boss dialogue printed to the chat window is static
+-- Blizzard content, not player speech, and arrives on its own set of events. It is translated by
+-- matching the English line against a flat map (same normalization and $N folding as gossip) and
+-- swapping it via a chat message filter. Only these NPC/boss events are filtered — players' own
+-- whispers, party and raid messages are never inspected, so live chat is untouched.
+local NPC_CHAT_EVENTS = {
+    "CHAT_MSG_MONSTER_SAY",
+    "CHAT_MSG_MONSTER_YELL",
+    "CHAT_MSG_MONSTER_WHISPER",
+    "CHAT_MSG_MONSTER_EMOTE",
+    "CHAT_MSG_RAID_BOSS_EMOTE",
+    "CHAT_MSG_RAID_BOSS_WHISPER",
+}
+
+local function LookupChat(liveText)
+    local languageCode = MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"]
+    local bucket = Matreshka_Chat and languageCode and Matreshka_Chat[languageCode]
+
+    if not bucket then
+        return nil, nil
+    end
+
+    local key = NormalizeGossip(liveText)
+
+    if not key then
+        return nil, nil
+    end
+
+    return bucket[key], key
+end
+
+local function RecordMissingChat(key)
+    if not key or not (MatreshkaOptions and MatreshkaOptions["SCAN_MISSING"]) then
+        return
+    end
+
+    MatreshkaMissing = MatreshkaMissing or {}
+    local bucket = "npcchat:" .. (MatreshkaOptions["SELECTED_LANGUAGE"] or "ru")
+    MatreshkaMissing[bucket] = MatreshkaMissing[bucket] or {}
+    MatreshkaMissing[bucket][key] = true
+end
+
+-- Chat filter: swap a known NPC/boss line for its translation, leaving the remaining arguments
+-- (author, channel, ...) untouched. Returning false keeps the message; the extra return values
+-- replace the message text.
+local function TranslateChatMessage(self, event, msg, ...)
+    if not (MatreshkaOptions and MatreshkaOptions["NPC_CHAT_TRANSLATIONS"]) then
+        return false
+    end
+
+    local translated, key = LookupChat(msg)
+
+    if translated then
+        return false, ApplyPlayerTokens(translated), ...
+    end
+
+    RecordMissingChat(key)
+    return false
+end
+
+if ChatFrame_AddMessageEventFilter then
+    for _, event in ipairs(NPC_CHAT_EVENTS) do
+        ChatFrame_AddMessageEventFilter(event, TranslateChatMessage)
+    end
+end
+
+-- The speech verb around an NPC line ("X says:/yells:/whispers:") is built by the chat engine from
+-- a global string, not from the line text, so it is localized by swapping those globals. Only the
+-- MONSTER_* / RAID_BOSS_* variants are touched — player speech uses different globals and stays put.
+-- Applied at login when chat translation is on; toggling the option takes effect after /reload, like
+-- the language switch. Options are restored from SavedVariables only by PLAYER_LOGIN, hence the event.
+local function ApplyChatVerbs()
+    if not (MatreshkaOptions and MatreshkaOptions["NPC_CHAT_TRANSLATIONS"]) then
+        return
+    end
+
+    CHAT_MONSTER_SAY_GET = "%s говорит: "
+    CHAT_MONSTER_YELL_GET = "%s кричит: "
+    CHAT_MONSTER_WHISPER_GET = "%s шепчет: "
+    CHAT_RAID_BOSS_WHISPER_GET = "%s шепчет: "
+end
+
+local chatVerbFrame = CreateFrame("Frame")
+chatVerbFrame:RegisterEvent("PLAYER_LOGIN")
+chatVerbFrame:SetScript("OnEvent", ApplyChatVerbs)
