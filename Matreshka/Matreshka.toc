@@ -3,7 +3,7 @@
 ## Notes: In-game translation of items, spells, NPCs, quests and NPC dialogue.
 ## IconTexture: Interface\AddOns\Matreshka\Icons\matreshka.png
 ## Author: MRAktiv
-## Version: 2.2.0
+## Version: 2.2.1
 ## SavedVariables: MatreshkaOptions, MatreshkaUserData, MatreshkaMissing
 ## OptionalDeps: LibStub, LibUIDropDownMenu
 
