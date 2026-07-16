@@ -305,6 +305,24 @@ local function LookupTranslation(map, liveText)
     return nil
 end
 
+-- A tooltip line coloured inline by another addon (e.g. the item-comparison delta
+-- "|cff00ff00+10 Stamina|r") carries its colour in the text, not on the FontString. Replacing that
+-- text with a plain translation drops the colour and the line turns white. Re-wrap the translation
+-- in the original leading |c..|r escape so the green/red gain-loss colour survives.
+local function PreserveInlineColor(originalText, translatedText)
+    if not originalText or translatedText:find("|c", 1, true) then
+        return translatedText
+    end
+
+    local colorCode = originalText:match("^(|c%x%x%x%x%x%x%x%x)")
+
+    if colorCode and originalText:find("|r", 1, true) then
+        return colorCode .. translatedText .. "|r"
+    end
+
+    return translatedText
+end
+
 -- Walk the native tooltip lines and translate only those whose text we recognize (leaves everything else untouched)
 local function TranslateTooltipInPlace(tooltip, map)
     if not next(map.exact) and not next(map.fuzzy) then
@@ -318,20 +336,22 @@ local function TranslateTooltipInPlace(tooltip, map)
         local leftFontString = _G[tooltipName .. "TextLeft" .. i]
 
         if leftFontString then
-            local translated = LookupTranslation(map, leftFontString:GetText())
+            local originalText = leftFontString:GetText()
+            local translated = LookupTranslation(map, originalText)
 
             if translated then
-                leftFontString:SetText(translated)
+                leftFontString:SetText(PreserveInlineColor(originalText, translated))
             end
         end
 
         local rightFontString = _G[tooltipName .. "TextRight" .. i]
 
         if rightFontString then
-            local translated = LookupTranslation(map, rightFontString:GetText())
+            local originalText = rightFontString:GetText()
+            local translated = LookupTranslation(map, originalText)
 
             if translated then
-                rightFontString:SetText(translated)
+                rightFontString:SetText(PreserveInlineColor(originalText, translated))
                 rightFontString:Show()
             end
         end
@@ -1146,3 +1166,94 @@ end
 local chatVerbFrame = CreateFrame("Frame")
 chatVerbFrame:RegisterEvent("PLAYER_LOGIN")
 chatVerbFrame:SetScript("OnEvent", ApplyChatVerbs)
+
+-- Friend online/offline notices are built from client global strings, like the chat verbs above.
+-- Swap them for Blizzard's official Russian wording so those system lines read in Russian too.
+local function ApplySystemStrings()
+    if not (MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"] == "ru") then
+        return
+    end
+
+    ERR_FRIEND_ONLINE_SS = "|Hplayer:%s|h[%s]|h теперь в сети."
+    ERR_FRIEND_OFFLINE_S = "%s теперь не в сети."
+end
+
+local systemStringsFrame = CreateFrame("Frame")
+systemStringsFrame:RegisterEvent("PLAYER_LOGIN")
+systemStringsFrame:SetScript("OnEvent", ApplySystemStrings)
+
+-- Mail letters. The body shown in the open-mail window is static NPC-authored text (server-sent,
+-- no client id and no official ruRU), matched against a flat map with the same normalization as
+-- gossip. OpenMail_Update repopulates the body from GetInboxText on every refresh, so a post-hook
+-- re-reads the freshly-set English and swaps it in place.
+local function LookupMail(liveText)
+    local languageCode = MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"]
+    local bucket = Matreshka_Mail and languageCode and Matreshka_Mail[languageCode]
+
+    if not bucket then
+        return nil, nil
+    end
+
+    local key = NormalizeGossip(liveText)
+
+    if not key then
+        return nil, nil
+    end
+
+    return bucket[key], key
+end
+
+local function RecordMissingMail(key)
+    if not key or not (MatreshkaOptions and MatreshkaOptions["SCAN_MISSING"]) then
+        return
+    end
+
+    MatreshkaMissing = MatreshkaMissing or {}
+    local bucket = "mail:" .. (MatreshkaOptions["SELECTED_LANGUAGE"] or "ru")
+    MatreshkaMissing[bucket] = MatreshkaMissing[bucket] or {}
+    MatreshkaMissing[bucket][key] = true
+end
+
+local function TranslateOpenMail()
+    if not (MatreshkaOptions and MatreshkaOptions["MAIL_TRANSLATIONS"]) then
+        return
+    end
+
+    local body = _G["OpenMailBodyText"]
+
+    if not body then
+        return
+    end
+
+    local text = body:GetText()
+
+    if not text or text == "" then
+        return
+    end
+
+    local translated, key = LookupMail(text)
+
+    if translated then
+        body:SetText(ApplyPlayerTokens(translated))
+    else
+        RecordMissingMail(key)
+    end
+end
+
+local mailHooked = false
+
+local function InstallMailHook()
+    if not mailHooked and type(OpenMail_Update) == "function" then
+        mailHooked = true
+        hooksecurefunc("OpenMail_Update", TranslateOpenMail)
+    end
+end
+
+InstallMailHook()
+
+if not mailHooked then
+    local mailInstaller = CreateFrame("Frame")
+    mailInstaller:RegisterEvent("ADDON_LOADED")
+    mailInstaller:RegisterEvent("PLAYER_LOGIN")
+    mailInstaller:SetScript("OnEvent", InstallMailHook)
+end

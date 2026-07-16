@@ -896,3 +896,183 @@ G["You wish to speak to me, draenei?"] =
 "Ты хочешь поговорить со мной, дреней?"
 G["Ysiel expected some enemy opposition to her foray into Outland. That's why us wardens were brought along. We never expected our opposition to come in the strength or numbers that the naga have shown."] =
 "Исиэль ожидала, что ее набегу на Запределье будет противодействовать враг. Вот почему нас, надзирателей, взяли с собой. Мы никогда не ожидали, что наше сопротивление окажется таким сильным или численным, как наги."
+G["Shaman, hold your attack, this is just a disguise! I'm a spy working for the Lower City coalition out of Shattrath City. I hope you're here to help!"] =
+"Шаман, останови атаку, это всего лишь маскировка! Я шпион, работаю на коалицию Нижнего Города из Шаттрата. Надеюсь, ты здесь, чтобы помочь!"
+G["Tell me of the Sons of Lothar."] =
+"Расскажи мне о Сынах Лотара."
+G["We've a duty out here, boy, to see to it that we don't let anyone surprise us. That means proactive action!"] =
+"У нас здесь есть долг, парень: следить, чтобы нас никто не застал врасплох. А значит — действовать на опережение!"
+G["I hope this place pans out as a forward base for Shadow Council operations. I know it sounds weird, but I kind of miss the Shadow Labyrinth."] =
+"Надеюсь, это место сгодится как передовая база для операций Совета Теней. Знаю, звучит странно, но я вроде как скучаю по Лабиринту Теней."
+G["What are you staring at, draenei?"] =
+"Чего уставился, дреней?"
+G["Do you like fish, draenei? I have fish here. If you like fresh fish, the freshest, come and sample my wares."] =
+"Любишь рыбу, дреней? У меня тут есть рыба. Если любишь свежую рыбу, самую свежую, — подходи, попробуй мой товар."
+G["These wastes are scarred by terrible magic. We must do what we can to heal this great wound."] =
+"Эти пустоши изранены ужасной магией. Мы должны сделать всё возможное, чтобы исцелить эту великую рану."
+G["<Sal'salabim growls at you, then goes back to drinking his frothy beverage.>"] =
+"<Сал'салабим рычит на вас, а затем возвращается к своему пенному напитку.>"
+G["Just browsing my wares or is there something specific I can help you find today?"] =
+"Просто разглядываешь товар или тебе помочь найти что-то конкретное?"
+G["I came to this land to cleanse troubled spirits, but after the attack I fear that my mission has failed. So many have been taken by the wastes. Please, you must help them."] =
+"Я пришёл в эти земли, чтобы очистить страждущие души, но после нападения боюсь, что моя миссия провалилась. Столько душ поглотили пустоши. Прошу, ты должен помочь им."
+G["Yes, private, what matter of import do you have to bring to my attention?"] =
+"Да, рядовой, какое важное дело ты хочешь до меня донести?"
+G["Who are you? What do you want here?"] =
+"Кто ты? Что тебе здесь нужно?"
+G["Why did you do this to us?"] =
+"Зачем ты так с нами поступил?"
+G["Auchindoun is home to my ancestor's spirits. We might not look it, but all Broken were once draenei... our spirits are all the same."] =
+"Аукиндон — обитель духов моих предков. Пусть по нам и не скажешь, но все Сломленные когда-то были дренеями... души у нас у всех одинаковые."
+G["What are you doing there?"] =
+"Что ты там делаешь?"
+G["Oh no, not you again! Go away!"] =
+"О нет, снова ты! Уходи!"
+G["Grant me your mark, mighty ancient."] =
+"Даруй мне свою метку, могучий древень."
+G["Why are you fixing all of this up?"] =
+"Зачем ты всё это чинишь?"
+G["I'm going to figure out what this shadowy group is up to no matter what!"] =
+"Я во что бы то ни стало выясню, что затевает эта теневая шайка!"
+G["Scryers Bank"] =
+"Банк Провидцев"
+G["I wish to make Honor Hold my home, Sid."] =
+"Я хочу сделать Оплот Чести своим домом, Сид."
+G["If you're expecting some kind of official welcome, you're going to be disappointed, shaman. We don't stand on tradition, here. What works is what goes."] =
+"Если ждёшь какого-то официального приёма, то будешь разочарован, шаман. Мы тут не держимся за традиции. Что работает — то и годится."
+G["Welcome. Will you take your rest here, or perhaps a meal?"] =
+"Добро пожаловать. Желаешь отдохнуть здесь или, может быть, перекусить?"
+G["Have you honed your skills enough to learn what I have to teach?"] =
+"Достаточно ли ты отточил своё мастерство, чтобы усвоить то, чему я могу научить?"
+G["Flight Master"] =
+"Распорядитель полётов"
+G["There are two banks in Shattrath, both along the rim of the central city hub. One is run by the draenei Aldor, the other by the blood elf Scryers."] =
+"В Шаттрате два банка, оба по краю центральной части города. Одним заправляют дренеи-Алдоры, другим — эльфы крови из Провидцев."
+G["I can instruct you in jewelcrafting. Interested?"] =
+"Я могу обучить тебя ювелирному делу. Интересно?"
+G["Practicing! Soon I'll be good enough to join the other summoners and take my turn inside the Shadow Labyrinth at Auchindoun. I hope that I'll get the chance to summon something big! Maybe something as big as Murmur, though I wouldn't lose control of him!"] =
+"Тренируюсь! Скоро я стану достаточно умел, чтобы присоединиться к другим призывателям, и настанет мой черёд войти в Лабиринт Теней в Аукиндоне. Надеюсь, мне выпадет шанс призвать что-нибудь большое! Может, такое же большое, как Мурмур, — но уж я-то не потеряю над ним контроль!"
+G["Well met, warlock. My advice to you is this: as you travel the world, be wary of magic for it will burn the untrained."] =
+"Приветствую, чернокнижник. Мой тебе совет: странствуя по миру, остерегайся магии — она обжигает неумелых."
+G["Please, sit and make yourself comfortable."] =
+"Прошу, присаживайся и устраивайся поудобнее."
+G["What can I do at an inn?"] =
+"Что можно делать в таверне?"
+G["Be careful going into the thicket, shaman. There is a harmful aura lingering about the place. It must be the residue from whatever destroyed my fellow druids."] =
+"Будь осторожен, входя в чащу, шаман. Над этим местом висит пагубная аура. Должно быть, это след того, что погубило моих собратьев-друидов."
+G["The World's End Tavern has nothing to offer those of my kind. However, I find that it attracts the type of clientele that are interested in what I have for sale. I specialize in exotic engineering goods acquired from far and wide. From time to time I might even have a rare thing or two for purchase. What might I interest you in?"] =
+"Таверна «Край света» ничего не может предложить таким, как я. Однако я замечаю, что она привлекает как раз ту публику, которую занимает мой товар. Я специализируюсь на экзотических инженерных штуковинах, добытых по всему свету. Порой у меня даже найдётся редкая вещица-другая на продажу. Чем могу тебя заинтересовать?"
+G["Advisor, what's the latest news?"] =
+"Советник, какие последние новости?"
+G["Romus informed me of the tragedies that beset my beautiful city. There are no fitting words for the sorrow I felt upon hearing of Lordaeron's fate - and the fate of my own, beloved Stromgarde. Twenty years ago, no one had heard of the 'Burning Legion'... Damn those cursed devils! Rest assured, $N; should I ever return to Azeroth, Stromgarde will once more rise as a force of reckoning. This I swear..."] =
+"Ромус поведал мне о бедах, обрушившихся на мой прекрасный город. Нет слов, что передали бы скорбь, которую я испытал, узнав о судьбе Лордерона — и о судьбе моего любимого Стромгарда. Двадцать лет назад никто и не слыхал о «Пылающем Легионе»... Будь прокляты эти изверги! Не сомневайся, $N: если я когда-нибудь вернусь в Азерот, Стромгард вновь восстанет как грозная сила. В этом я клянусь..."
+G["What's it look like I'm doing? I'm fixing the place up - all on my own I might add - so that we can move in! With a base of operations out here in the forest, it'll be easier to keep track of what Shattrath, Allerian, Stonebreaker and the Cenarion druids are all up to. Our base in Auchindoun is just too inconvenient for that. Wait a minute, do I know you?"] =
+"А на что это похоже? Привожу тут всё в порядок — заметь, в одиночку, — чтобы мы могли сюда перебраться! С базой операций здесь, в лесу, будет проще следить за тем, что затевают Шаттрат, Аллерия, Оплот Камнеломов и друиды Кенария. Наша база в Аукиндоне для этого попросту слишком неудобна. Погоди-ка, разве я тебя знаю?"
+G["Welcome, $N. We are the Aldor, priests of the Light and servants of the Sha'tar. You are welcome to stay with us for as long as you need."] =
+"Добро пожаловать, $N. Мы — Алдоры, жрецы Света и слуги Ша'тар. Оставайся с нами столько, сколько потребуется."
+G["Welcome to the Allerian Stronghold, $N."] =
+"Добро пожаловать в Аллерийский Оплот, $N."
+G["I would like to train."] =
+"Я хотел бы обучиться."
+G["Alchemy Lab"] =
+"Алхимическая лаборатория"
+G["Hi! Do you think you might help me to get out of here?"] =
+"Привет! Как думаешь, ты мог бы помочь мне выбраться отсюда?"
+G["Very busy... very busy! What?"] =
+"Очень занят... очень занят! Ну что?"
+G["Yeah, what do you want? Can't you see I'm busy here? The Shadow Council isn't paying me by the hour!"] =
+"Ну, чего тебе? Не видишь, я занят? Совет Теней мне не по часам платит!"
+G["Tell me of your homeland."] =
+"Расскажи мне о своей родине."
+G["Hey, citizen! You look like a stout one. We guards are spread a little thin out here, and I could use your help..."] =
+"Эй, гражданин! С виду ты крепкий малый. Нас, стражников, тут маловато, и мне бы пригодилась твоя помощь..."
+G["<A soothing light fills you as you approach the naaru. Slow musical chimes echo within your mind and, though a word is not uttered, you feel an assurance of safety. You are welcome in Shattrath City.>"] =
+"<Умиротворяющий свет наполняет вас, когда вы приближаетесь к наару. Медленный музыкальный перезвон отзывается в вашем сознании, и, хотя не произнесено ни слова, вы ощущаете уверенность в своей безопасности. Вам рады в городе Шаттрат.>"
+G["The war against the Horde has reached full tilt, $N. This is a time of great need for the Alliance and it's necessary that all of us do our part to help."] =
+"Война с Ордой разгорелась в полную силу, $N. Для Альянса настали тяжёлые времена, и каждый из нас должен внести свою лепту."
+G["The Horde isn't the only danger in this forest. Don't let its seeming tranquility fool you."] =
+"Орда — не единственная опасность в этом лесу. Не дай его мнимому спокойствию себя обмануть."
+G["Welcome to Shattrath City, seat of the Sha'tar in Outland. You seek guidance?"] =
+"Добро пожаловать в город Шаттрат, оплот Ша'тар в Запределье. Ищешь наставления?"
+G["The Aldor bank is located northwest of the the city's center."] =
+"Банк Алдоров находится к северо-западу от центра города."
+G["Oh, what a sacred place is here overthrown!"] =
+"О, какое священное место здесь низвергнуто!"
+G["Well, I was just giving our leader here a progress report on how everything is proceeding according to plan. It should only be a few more weeks and we'll have this place back in shape. We may want the Shadow Council to only staff the village with orcs, however. That way we can make an ancestral claim and work undercover. Wait a minute. Do I know you? What's your name?"] =
+"Ну, я как раз докладывал нашему предводителю, как всё идёт по плану. Ещё пара недель — и мы приведём это место в порядок. Хотя, пожалуй, стоит попросить Совет Теней заселить деревню одними орками. Так мы сможем заявить на неё родовые права и работать под прикрытием. Погоди-ка. Разве я тебя знаю? Как тебя зовут?"
+G["And what is it exactly that you think I can do for you? Can't you see that I'm very busy here discussing matters of import with our illustrious leader? Be quick about your business or I'll have you beaten, dog!"] =
+"И что же, по-твоему, я могу для тебя сделать? Не видишь, я тут занят — обсуждаю важные дела с нашим прославленным предводителем? Говори, что тебе нужно, да поживее, не то прикажу тебя вздуть, пёс!"
+G["Do they never rest?! If we're to secure a future for the people of the Lower City, we must deal with the Shadow Council before they cause an even greater cataclysm than the Bone Wastes! Because the leadership of Shattrath City will not move quickly, we the free people of the Lower City have taken matters into our own hands. But our spies have been discovered. We will hold off the Shadow Council's agents while you slip into the labyrinth and see what you can uncover."] =
+"Неужели они никогда не угомонятся?! Если мы хотим обеспечить будущее народу Нижнего Города, нужно разобраться с Советом Теней прежде, чем они устроят катаклизм пострашнее Костяных Пустошей! Раз уж власти Шаттрата не спешат действовать, мы, вольный народ Нижнего Города, взяли дело в свои руки. Но наших шпионов раскрыли. Мы задержим агентов Совета Теней, пока ты проберёшься в лабиринт и разузнаешь, что сможешь."
+G["No, don't feel bad. I get that a lot. <Taela looks both amused and annoyed.> I'm a HIGH elf, not a blood elf. Don't worry, I'm not going to suck all of the magic out of you."] =
+"Нет-нет, не смущайся. Мне часто так говорят. <Таэла выглядит одновременно позабавленной и раздражённой.> Я ВЫСШАЯ эльфийка, а не эльфийка крови. Не бойся, я не собираюсь высасывать из тебя всю магию."
+G["\"Born from light\" would be a close translation for Sha'tar. It is the name we gave to the naaru who reclaimed Shattrath City from the agents of Illidan."] =
+"«Рождённые из света» — так примерно переводится Ша'тар. Это имя мы дали наару, что отвоевали город Шаттрат у прислужников Иллидана."
+G["Sid's the name. It's nice to see some new faces around here. What can I do you for?"] =
+"Меня звать Сид. Приятно видеть тут новые лица. Чем могу помочь?"
+G["I am interested in warlock training."] =
+"Меня интересует обучение чернокнижника."
+G["Inn"] =
+"Таверна"
+G["The arcane only corrupts those who are weak. Even if you do not follow the path of the warlock, you would do well to remember that."] =
+"Тайная магия развращает лишь слабых. Даже если ты не идёшь путём чернокнижника, тебе не помешает это помнить."
+G["Let's see what you have."] =
+"Посмотрим, что у тебя есть."
+G["Show me your wares, Maktu."] =
+"Покажи свой товар, Макту."
+G["Welcome to the Allerian Stronghold, shaman."] =
+"Добро пожаловать в Аллерийский Оплот, шаман."
+G["When I first arrived, I'd hoped to meet the town's namesake. <Ros'eleth glances around.> Most young high elves outgrow the 'I wanna be a Farstrider' phase by the time they're taken as apprentices. Then, it's onto the 'I'm going to be a magister' stage. I don't think I ever quite outgrew the Farstrider phase, to be honest. No one dreams of growing up to be a seamstress, but we can't have the Farstriders running around naked, as my mother used to say."] =
+"Когда я только прибыла, я надеялась встретить того, в чью честь назван этот город. <Рос'элет оглядывается по сторонам.> Большинство юных высших эльфов перерастают пору «хочу быть Странником» ещё до того, как их берут в ученики. Потом наступает пора «стану магистром». Честно говоря, я, кажется, так и не переросла пору Странника. Никто не мечтает стать швеёй, но не бегать же Странникам нагишом, как говаривала моя матушка."
+G["Who are the Sha'tar?"] =
+"Кто такие Ша'тар?"
+G["Gem Merchant"] =
+"Торговец самоцветами"
+G["My early classes are always filled with bright-eyed young lads. Few make it past the first test, though. I've given up on shouting, 'when I yell vanish, you need to vanish.' They never listen. Now, the test simply kills the inept."] =
+"Мои первые занятия всегда полны юнцов с горящими глазами. Вот только мало кто проходит первое испытание. Я уже бросил кричать: «когда я ору „исчезни“ — ты должен исчезнуть». Они не слушают. Теперь испытание просто убивает неумех."
+G["Yes? Darn it all, now I'll have to start over from scratch!"] =
+"Да? Проклятье, теперь придётся начинать всё сначала!"
+G["<more>"] =
+"<ещё>"
+G["Have you seen the way Ros'eleth winks at me whenever I go to pick up a garment or hat? When things settle down around here, I'm going to take her for a nice walk in the woods. For once, I miss all those fancy taverns in Stormwind."] =
+"Ты видел, как Рос'элет подмигивает мне всякий раз, когда я захожу за одеждой или шляпой? Когда тут всё утихнет, я поведу её на славную прогулку по лесу. Впервые я скучаю по всем этим шикарным тавернам Штормграда."
+G["Bank"] =
+"Банк"
+G["Dinner guests should show more respect!"] =
+"Гостям за ужином следует вести себя почтительнее!"
+G["With new enemies on our doorsteps, we must not allow our ancient enemies to take advantage of our situation!"] =
+"Когда новые враги у нашего порога, нельзя позволить давним врагам воспользоваться нашим положением!"
+G["With the Allerian Stronghold surrounded by enemies on all sides it's time for us to take the fight to them."] =
+"Раз Аллерийский Оплот окружён врагами со всех сторон, самое время перейти в наступление."
+G["Mana Loom"] =
+"Ткацкий станок маны"
+G["Now that I've been beaten to within an inch of my life what do you want?"] =
+"Ну, меня избили до полусмерти — так чего тебе надо?"
+G["If you're interested, a couple of us are going into Shattrath for drinks later."] =
+"Если интересно, попозже несколько наших собираются в Шаттрат пропустить по стаканчику."
+G["Aldor Bank"] =
+"Банк Алдоров"
+G["World's End Tavern"] =
+"Таверна «Край света»"
+G["WUT YOU WANT!?"] =
+"ЧË ТЕ НАДА?!"
+G["Empoor, you're going to tell me what I want to know, or else!"] =
+"Эмпур, ты расскажешь мне то, что я хочу знать, иначе тебе несдобровать!"
+G["The Lightwarden's job is twofold. Protect the priesthood at all costs first and foremost. Destroy the enemies of the Light wherever they may hide second."] =
+"У Стража Света две задачи. Первая и главная — любой ценой защищать жречество. Вторая — уничтожать врагов Света, где бы они ни прятались."
+G["The opening of the Dark Portal brought news of my people's fate. In a way, my exile shielded me from sharing in their downfall, but to see the Farstriders throw their lot in with Kael'thas... I never imagined my one-time brethren capable of such a thing. The homecoming I once dreamt of will never happen. This forest is the only home I have left."] =
+"С открытием Темного портала пришли вести о судьбе моего народа. В каком-то смысле изгнание уберегло меня от их участи, но видеть, как Странники связали свою судьбу с Кель'тасом... Я и представить не мог, что мои некогда братья способны на такое. Возвращению домой, о котором я когда-то мечтал, не бывать. Этот лес — единственный дом, что у меня остался."
+G["What is your major malfunction?!"] =
+"Да что с тобой не так?!"
+G["Shattrath is more than a staging ground for war against the Burning Legion and Illidan. It serves as a sanctuary to those seeking to escape the violence surrounding us. We would be hypocrites if we turned the refugees away. If your question refers to the Scryers, then I will respond that while I may not like them or their leader's wild claims of visions of redemption, it is not for us to question the wisdom of the naaru. These are difficult times, $N. We need allies where we can find them."] =
+"Шаттрат — не просто плацдарм для войны с Пылающим Легионом и Иллиданом. Он служит убежищем для тех, кто ищет спасения от окружающего нас насилия. Мы были бы лицемерами, если бы прогнали беженцев. Если твой вопрос о Провидцах, то отвечу так: пусть мне и не по душе ни они, ни безумные заявления их вождя о видениях искупления, — не нам оспаривать мудрость наару. Настали трудные времена, $N. Союзники нужны нам всюду, где их можно найти."
+G["It is said that those who are blessed by the spirits of Auchindoun possess the ability to capture powerful souls in the form of Spirit Shards. I have come across a few of these Spirit Shards throughout my travels but have yet to unlock their secrets. The only thing I have been able to discern is that they seem to originate from the depths of Auchindoun itself. If you happen to come across any of these Spirit Shards I'm sure I could make it worth your while to allow me to take them off your hands..."] =
+"Говорят, что благословлённые духами Аукиндона способны заключать могущественные души в Осколки душ. За свои странствия я раздобыл несколько таких Осколков душ, но их тайны мне пока не открылись. Всё, что мне удалось понять, — что происходят они, похоже, из самых недр Аукиндона. Если тебе доведётся наткнуться на такие Осколки душ, уверен, я сумею вознаградить тебя за то, что ты уступишь их мне..."
+G["We'll get to the bottom of this massacre if it's the last thing we do!"] =
+"Мы доберёмся до сути этой резни, чего бы нам это ни стоило!"
+G["Isn't Shattrath a draenei city? Why do you allow others here?"] =
+"Разве Шаттрат не город дренеев? Почему вы пускаете сюда чужаков?"
+G["I can teach you how to cook!"] =
+"Я могу научить тебя готовить!"
+G["I would like to take a look at your wares, Sid."] =
+"Я хотел бы взглянуть на твой товар, Сид."
