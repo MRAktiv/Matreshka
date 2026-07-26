@@ -27363,6 +27363,8 @@ Matreshka_DB["item:en"] = {
 [265830]={"Communal Flamewrought Key","Binds to account\nRequiresHonor Hold\n- Friendly\n[q]\"Unlocks access to Heroic Difficulty Hellfire Citadel dungeons.\""},
 [265843]={"Communal Reservoir Key","Binds to account\nRequiresCenarion Expedition\n- Friendly\n[q]\"Unlocks access to Heroic Difficulty Coilfang Reservoir dungeons.\""},
 [265845]={"Communal Auchenai Key","Binds to account\nRequiresLower City\n- Friendly\n[q]\"Unlocks access to Heroic Difficulty Auchindoun dungeons.\""},
+[265846]={"Communal Auchenai Pouch"},
 [265847]={"Communal Warpforged Key","Binds to account\nRequiresThe Sha'tar\n- Friendly\n[q]\"Unlocks access to Heroic Difficulty Tempest Keep dungeons.\""},
+[265848]={"Communal Warpforged Pouch"},
 [265849]={"Communal Key of Time","Binds to account\nRequiresKeepers of Time\n- Friendly\n[q]\"Unlocks access to Heroic Difficulty Caverns of Time dungeons.\""}
 }
