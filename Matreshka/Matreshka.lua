@@ -1237,8 +1237,8 @@ systemStringsFrame:SetScript("OnEvent", ApplySystemStrings)
 
 -- Mail letters. The body shown in the open-mail window is static NPC-authored text (server-sent,
 -- no client id and no official ruRU), matched against a flat map with the same normalization as
--- gossip. OpenMail_Update repopulates the body from GetInboxText on every refresh, so a post-hook
--- re-reads the freshly-set English and swaps it in place.
+-- gossip. The body widget is a SimpleHTML frame and has no GetText, so the post-hook re-reads the
+-- English source through GetInboxText — the same call OpenMail_Update makes on every refresh.
 local function LookupMail(liveText)
     local languageCode = MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"]
     local bucket = Matreshka_Mail and languageCode and Matreshka_Mail[languageCode]
@@ -1273,12 +1273,13 @@ local function TranslateOpenMail()
     end
 
     local body = _G["OpenMailBodyText"]
+    local mailID = InboxFrame and InboxFrame.openMailID
 
-    if not body then
+    if not body or not mailID then
         return
     end
 
-    local text = body:GetText()
+    local text = GetInboxText(mailID)
 
     if not text or text == "" then
         return
@@ -1287,7 +1288,7 @@ local function TranslateOpenMail()
     local translated, key = LookupMail(text)
 
     if translated then
-        body:SetText(ApplyPlayerTokens(translated))
+        body:SetText(ApplyPlayerTokens(translated), true)
     else
         RecordMissingMail(key)
     end
