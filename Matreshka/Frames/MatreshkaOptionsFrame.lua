@@ -8,6 +8,7 @@ local defaultOptions = nil
 local optionsTranslations = nil
 local settingsCategory = nil
 local showIdsCheckbox = nil
+local clearMissingButton = nil
 
 -- cn/tw translation data ships in the LoadOnDemand addon Matreshka_Options, so it stays
 -- out of memory until actually selected. ru + en are always loaded with the core addon.
@@ -93,6 +94,47 @@ local function CreateOptionCheckbox(parent, name, labelText, optionKey, onToggle
     end)
 
     return checkbox
+end
+
+-- Total across every bucket of the missing-translation database (MatreshkaMissing SavedVariable)
+local function CountMissingTotal()
+    local total = 0
+    if MatreshkaMissing then
+        for _, ids in pairs(MatreshkaMissing) do
+            for _ in pairs(ids) do
+                total = total + 1
+            end
+        end
+    end
+    return total
+end
+
+-- Russian plural form by count: one/few/many (e.g. "1 строка", "2 строки", "5 строк")
+local function DeclineCount(count, forms)
+    local mod10, mod100 = count % 10, count % 100
+    if mod10 == 1 and mod100 ~= 11 then
+        return forms[1]
+    elseif mod10 >= 2 and mod10 <= 4 and (mod100 < 10 or mod100 >= 20) then
+        return forms[2]
+    else
+        return forms[3]
+    end
+end
+
+-- Clears the collected missing-translation database; shared by /mtmissing clear and the options button
+local function ClearMissingDatabase()
+    MatreshkaMissing = {}
+    print("|cFFFFD100Matreshka|r: список пропусков очищен.")
+end
+
+-- Disable the clear button when nothing is collected, so the popup never shows for nothing
+local function UpdateClearMissingButtonState()
+    if not clearMissingButton then return end
+    if CountMissingTotal() > 0 then
+        clearMissingButton:Enable()
+    else
+        clearMissingButton:Disable()
+    end
 end
 
 local function getDefaultOptions(optionsTranslations)
@@ -244,6 +286,39 @@ local function InitializeOptions()
         end
     end)
 
+    -- Очистка собранной базы пропусков перевода — правый нижний угол, тот же уровень, что кнопка экспорта
+    StaticPopupDialogs["MATRESHKA_CLEAR_MISSING"] = {
+        text = optionsTranslations["clearMissingConfirmText"] .. "\n\n%s",
+        button1 = optionsTranslations["clearMissingConfirmButton"],
+        button2 = optionsTranslations["clearMissingCancelButton"],
+        OnAccept = function()
+            ClearMissingDatabase()
+            UpdateClearMissingButtonState()
+        end,
+        timeout = 0,
+        hideOnEscape = true,
+    }
+
+    clearMissingButton = CreateFrame("Button", nil, optionsContainer, "UIPanelButtonTemplate")
+    clearMissingButton:SetSize(160, 26)
+    clearMissingButton:SetPoint("BOTTOMRIGHT", optionsContainer, "BOTTOMRIGHT", -20, 16)
+    clearMissingButton:SetText(optionsTranslations["clearMissingButton"])
+    clearMissingButton:SetScript("OnClick", function()
+        local total = CountMissingTotal()
+        local countLine = optionsTranslations["clearMissingCountText"]:format(
+            total, DeclineCount(total, optionsTranslations["clearMissingCountForms"]))
+        StaticPopup_Show("MATRESHKA_CLEAR_MISSING", countLine)
+    end)
+    UpdateClearMissingButtonState()
+
+    local clearMissingTitle = optionsContainer:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    clearMissingTitle:SetPoint("BOTTOMRIGHT", clearMissingButton, "TOPRIGHT", 0, 6)
+    clearMissingTitle:SetWidth(240)
+    clearMissingTitle:SetJustifyH("RIGHT")
+    clearMissingTitle:SetText(optionsTranslations["clearMissingTitle"])
+
+    optionsPanel:SetScript("OnShow", UpdateClearMissingButtonState)
+
     -- Предпочитаем современный Settings API: он даёт категорию с ID, по которому
     -- слэш-команда открывает настройки СРАЗУ на странице мода (устаревший
     -- InterfaceOptionsFrame_OpenToCategory на этом клиенте лишь открывает меню, не выделяя категорию)
@@ -330,8 +405,8 @@ end
 SLASH_MATRESHKA_MISSING1 = "/mtmissing"
 SlashCmdList["MATRESHKA_MISSING"] = function(arg)
     if arg == "clear" then
-        MatreshkaMissing = {}
-        print("|cFFFFD100Matreshka|r: список пропусков очищен.")
+        ClearMissingDatabase()
+        UpdateClearMissingButtonState()
         return
     end
 

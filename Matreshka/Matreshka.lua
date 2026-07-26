@@ -789,6 +789,59 @@ if QuestInfo_Display then
     end)
 end
 
+-- Quest Log (journal) detail pane: unlike QuestFrame, it does not route through QuestInfo_Display —
+-- it has its own header widgets (QuestLogDescriptionTitle / QuestLogRewardTitleText /
+-- QuestLogItemChooseText / QuestLogItemReceiveText), refreshed by QuestLog_UpdateQuestDetails.
+if QuestLog_UpdateQuestDetails then
+    hooksecurefunc("QuestLog_UpdateQuestDetails", function()
+        if not MatreshkaOptions
+            or not MatreshkaOptions["QUEST_TRANSLATIONS"] then
+            return
+        end
+
+        local languageCode = MatreshkaOptions["SELECTED_LANGUAGE"]
+        local translations = MatreshkaTranslations and MatreshkaTranslations[languageCode]
+
+        if not translations then
+            return
+        end
+
+        if QuestLogDescriptionTitle and translations.description then
+            QuestLogDescriptionTitle:SetText(translations.description)
+        end
+
+        if QuestLogRewardTitleText and translations.rewards then
+            QuestLogRewardTitleText:SetText(translations.rewards)
+        end
+
+        local selectedQuestIndex = GetQuestLogSelection()
+        local questData = selectedQuestIndex and selectedQuestIndex > 0
+            and GetDataByID("quest", select(8, GetQuestLogTitle(selectedQuestIndex)))
+        local rewardsIntro = questData and questData.rewards and ApplyPlayerTokens(questData.rewards):match("[^\r\n]+")
+
+        local chooseText = QuestLogItemChooseText
+        local receiveText = QuestLogItemReceiveText
+
+        if rewardsIntro then
+            if chooseText and chooseText:IsShown() then
+                chooseText:SetText(rewardsIntro)
+            end
+
+            if receiveText and receiveText:IsShown() then
+                receiveText:SetText(rewardsIntro)
+            end
+        else
+            if chooseText and chooseText:IsShown() and translations.rewardsChoose then
+                chooseText:SetText(translations.rewardsChoose)
+            end
+
+            if receiveText and receiveText:IsShown() and translations.rewardsReceive then
+                receiveText:SetText(translations.rewardsReceive)
+            end
+        end
+    end)
+end
+
 -- Quest ID for bug reports: append "(ID: N)" to the quest title in the quest log detail pane and
 -- the quest-giver dialog. Independent of translation mode and of whether the quest is translated.
 if QuestInfo_Display then

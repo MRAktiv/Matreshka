@@ -10,6 +10,9 @@ local L = {
     ru = {
         objectives = "Цели задания",
         rewards = "Награды",
+        description = "Описание",
+        rewardsChoose = "Вы сможете выбрать одну из этих наград:",
+        rewardsReceive = "Вы получите:",
         options = {
             generalOptionsTitle = "Общие настройки",
             languageDropdownLabel = "Язык перевода:",
@@ -23,6 +26,13 @@ local L = {
             mailText = "Письма",
             onlyNameText = "только название",
             showIdsText = "Показывать ID (для отчётов об ошибках)",
+            clearMissingTitle = "Очистка собранной базы текста для перевода",
+            clearMissingButton = "Очистить базу",
+            clearMissingConfirmText = "Перед очисткой не забудьте отправить файл с непереведённым текстом разработчику.",
+            clearMissingCountText = "Собрано сейчас: %d %s",
+            clearMissingCountForms = { "строка", "строки", "строк" },
+            clearMissingConfirmButton = "Очистить",
+            clearMissingCancelButton = "Отмена",
             languages = {
                 ru = "Русский",
                 en = "Английский",
@@ -34,6 +44,9 @@ local L = {
     en = {
         objectives = "Quest Objectives",
         rewards = "Rewards",
+        description = "Description",
+        rewardsChoose = "You will be able to choose one of these rewards:",
+        rewardsReceive = "You will receive:",
         options = {
             generalOptionsTitle = "General settings",
             languageDropdownLabel = "Translation language:",
@@ -47,6 +60,13 @@ local L = {
             mailText = "Mail letters",
             onlyNameText = "name only",
             showIdsText = "Show IDs (for error reports)",
+            clearMissingTitle = "Clear the collected untranslated text database",
+            clearMissingButton = "Clear database",
+            clearMissingConfirmText = "Before clearing, don't forget to send the untranslated text file to the developer.",
+            clearMissingCountText = "Currently collected: %d %s",
+            clearMissingCountForms = { "line", "lines", "lines" },
+            clearMissingConfirmButton = "Clear",
+            clearMissingCancelButton = "Cancel",
             languages = {
                 ru = "Russian",
                 en = "English",
@@ -58,10 +78,38 @@ local L = {
     cn = {
         objectives = "任务目标",
         rewards = "奖励",
+        -- TODO: not verified, left in English (see report) — do not guess characters
+        description = "Description",
+        rewardsChoose = "You will be able to choose one of these rewards:",
+        rewardsReceive = "You will receive:",
+        options = {
+            -- TODO: not verified, left in English (see report) — do not guess characters
+            clearMissingTitle = "Clear the collected untranslated text database",
+            clearMissingButton = "Clear database",
+            clearMissingConfirmText = "Before clearing, don't forget to send the untranslated text file to the developer.",
+            clearMissingCountText = "Currently collected: %d %s",
+            clearMissingCountForms = { "line", "lines", "lines" },
+            clearMissingConfirmButton = "Clear",
+            clearMissingCancelButton = "Cancel",
+        },
     },
     tw = {
         objectives = "任務目標",
         rewards = "獎勵",
+        -- TODO: not verified, left in English (see report) — do not guess characters
+        description = "Description",
+        rewardsChoose = "You will be able to choose one of these rewards:",
+        rewardsReceive = "You will receive:",
+        options = {
+            -- TODO: not verified, left in English (see report) — do not guess characters
+            clearMissingTitle = "Clear the collected untranslated text database",
+            clearMissingButton = "Clear database",
+            clearMissingConfirmText = "Before clearing, don't forget to send the untranslated text file to the developer.",
+            clearMissingCountText = "Currently collected: %d %s",
+            clearMissingCountForms = { "line", "lines", "lines" },
+            clearMissingConfirmButton = "Clear",
+            clearMissingCancelButton = "Cancel",
+        },
     },
 }
 
