@@ -1,4 +1,4 @@
-## Interface: 20505
+## Interface: 20506
 ## Title: Matreshka_Options
 ## Notes: Optional language|nChinese (simplified)|nChinese (traditional)
 ## IconTexture: Interface\AddOns\Matreshka\Icons\matreshka.png

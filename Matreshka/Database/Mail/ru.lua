@@ -3,8 +3,8 @@
 
 -- Mail (letter) translations. Keyed by the English letter body the client shows, normalized like
 -- gossip (collapse whitespace, fold the player name to $N). Mail bodies are server-sent with no
--- client id and no official ruRU, so values are machine-translated and proofread. The sender name
--- inside the signature is kept in English to match the untranslated "From" line.
+-- client id. The sender name inside the signature is kept in English to match the untranslated
+-- "From" line.
 
 Matreshka_Mail = Matreshka_Mail or {}
 Matreshka_Mail.ru = Matreshka_Mail.ru or {}
