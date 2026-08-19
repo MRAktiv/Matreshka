@@ -88,3 +88,5 @@ C["Raaar!!! Me smash Draenei!"]="Рррааар! Моя убить дренея!
 C["What draenei dare harm those of my flock?"]="Что это за дреней осмеливается вредить овцам из моего стада?"
 C["What troll dare harm those of my flock?"]="Что это за тролль осмеливается вредить овцам из моего стада?"
 C["Psst! Hey, shaman, over here to your left. Come here!"]="Псст! Эй, шаман, я тут, слева! Иди сюда!"
+C["Pledge your loyalty to the Master, Madam, and your life shall be spared!"]="Проявите свою лояльность к Повелителю, мадам, и получите пощаду."
+C["I... I have died... I was in so much pain... engulfed in darkness... Can you see me, draenei?"]="Я... Я умер... Мне было так больно... Тьма поглотила меня. Ты меня видишь, дреней?"
