@@ -370,30 +370,27 @@ local function TranslateAndRecord(tooltip, cacheKey, map)
 end
 
 -- Append our extra lines (entity ID for bug reports, and/or the original item name) once, at the
--- very bottom of the tooltip. Called from OnUpdate so it runs after every addon's synchronous
--- OnTooltipSetItem additions, keeping our lines last.
+-- very bottom of the tooltip. Called after Show, which the client calls once every addon's
+-- synchronous OnTooltipSetItem additions are in, keeping our lines last; OnUpdate is the fallback.
+-- Appending in the same frame matters for tooltips the client rebuilds every frame (mail
+-- attachments): a next-frame append made their height jump back and forth.
 local function AppendBottomLines(tooltip)
-    if tooltip.matreshkaBottomAdded then
+    if tooltip.matreshkaBottomAdded or not (tooltip.matreshkaIdText or tooltip.matreshkaAuctionName) then
         return
     end
 
     tooltip.matreshkaBottomAdded = true
-    local added = false
 
     if tooltip.matreshkaIdText then
         tooltip:AddLine(tooltip.matreshkaIdText, 0.6, 0.6, 0.6)
-        added = true
     end
 
     if tooltip.matreshkaAuctionName then
         tooltip:AddLine("Auction name: " .. tooltip.matreshkaAuctionName, 0.6, 0.6, 0.6)
-        added = true
     end
 
-    if added then
-        tooltip.matreshkaLineCount = tooltip:NumLines()
-        tooltip:Show()
-    end
+    tooltip.matreshkaLineCount = tooltip:NumLines()
+    tooltip:Show()
 end
 
 -- Missing-translation collector: when scanning is on, remember every entity that has no
@@ -899,6 +896,7 @@ GameTooltip:HookScript("OnTooltipSetSpell", HandleSpellTooltip)
 GameTooltip:HookScript("OnTooltipSetUnit", HandleUnitTooltip)
 GameTooltip:HookScript("OnTooltipCleared", ResetTooltipState)
 GameTooltip:HookScript("OnUpdate", OnTooltipUpdate)
+hooksecurefunc(GameTooltip, "Show", AppendBottomLines)
 
 -- The item comparison tooltips ("Currently Equipped" side panels) are separate frames, so they
 -- need the same item translation hooks. They only ever show items.
@@ -910,6 +908,7 @@ for _, frameName in ipairs({ "ShoppingTooltip1", "ShoppingTooltip2", "ShoppingTo
         shopping:HookScript("OnTooltipSetItem", HandleItemTooltip)
         shopping:HookScript("OnTooltipCleared", ResetTooltipState)
         shopping:HookScript("OnUpdate", OnTooltipUpdate)
+        hooksecurefunc(shopping, "Show", AppendBottomLines)
     end
 end
 
@@ -1030,7 +1029,10 @@ local function LookupGossip(liveText)
         return nil, nil
     end
 
-    return bucket[key], key
+    -- Many gossip texts are broadcast texts too, so the official chat map covers what the gossip map lacks.
+    local chatBucket = Matreshka_Chat and Matreshka_Chat[languageCode]
+
+    return bucket[key] or (chatBucket and chatBucket[key]), key
 end
 
 local function RecordMissingGossip(key)
@@ -1310,4 +1312,459 @@ if not mailHooked then
     mailInstaller:RegisterEvent("ADDON_LOADED")
     mailInstaller:RegisterEvent("PLAYER_LOGIN")
     mailInstaller:SetScript("OnEvent", InstallMailHook)
+end
+
+-- Books, notes and plaques (ItemTextFrame). Page text is server-sent with no client id, so it is
+-- matched as text like gossip. The page widget is a SimpleHTML frame: the post-hook re-reads the
+-- English page through ItemTextGetText and rebuilds the text the way ItemTextFrame_OnEvent does.
+local function LookupBook(liveText)
+    local languageCode = MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"]
+    local bucket = Matreshka_Books and languageCode and Matreshka_Books[languageCode]
+
+    if not bucket then
+        return nil, nil
+    end
+
+    local key = NormalizeGossip(liveText)
+
+    if not key then
+        return nil, nil
+    end
+
+    return bucket[key], key
+end
+
+local function RecordMissingBook(key)
+    if not key or not (MatreshkaOptions and MatreshkaOptions["SCAN_MISSING"]) then
+        return
+    end
+
+    MatreshkaMissing = MatreshkaMissing or {}
+    local bucket = "book:" .. (MatreshkaOptions["SELECTED_LANGUAGE"] or "ru")
+    MatreshkaMissing[bucket] = MatreshkaMissing[bucket] or {}
+    MatreshkaMissing[bucket][key] = true
+end
+
+-- Lazy index: english item name -> translated name, for the frame title (it shows the item name).
+local itemTitleIndex = nil
+local itemTitleIndexLanguage = nil
+
+local function GetTranslatedItemName(englishName)
+    if not englishName or englishName == "" then
+        return nil
+    end
+
+    local languageCode = MatreshkaOptions["SELECTED_LANGUAGE"]
+
+    if itemTitleIndex == nil or itemTitleIndexLanguage ~= languageCode then
+        itemTitleIndex = {}
+        itemTitleIndexLanguage = languageCode
+
+        local englishData = Matreshka_GetBucket("item", "en")
+        local translatedData = Matreshka_GetBucket("item", languageCode)
+
+        if englishData and translatedData then
+            for id, englishRow in pairs(englishData) do
+                local translatedRow = translatedData[id]
+
+                if englishRow[1] and translatedRow and translatedRow[1] then
+                    itemTitleIndex[NormalizeForLookup(englishRow[1])] = NormalizeForLookup(translatedRow[1])
+                end
+            end
+        end
+    end
+
+    return itemTitleIndex[NormalizeForLookup(englishName)]
+end
+
+local function TranslateItemText(self, event)
+    if not (MatreshkaOptions and MatreshkaOptions["BOOK_TRANSLATIONS"]) then
+        return
+    end
+
+    if event == "ITEM_TEXT_BEGIN" then
+        local title = GetTranslatedItemName(ItemTextGetItem())
+
+        if title then
+            ItemTextTitleText:SetText(title)
+        end
+
+        return
+    end
+
+    if event ~= "ITEM_TEXT_READY" then
+        return
+    end
+
+    local text = ItemTextGetText()
+
+    if not text or text == "" then
+        return
+    end
+
+    local translated, key = LookupBook(text)
+
+    if not translated then
+        RecordMissingBook(key)
+        return
+    end
+
+    -- HTML pages carry no player tokens, and the <masc/fem> pattern would eat their <BR/> tags.
+    if not translated:find("^%s*<[Hh][Tt][Mm][Ll]>") then
+        translated = ApplyPlayerTokens(translated)
+    end
+
+    local creator = ItemTextGetCreator()
+
+    if creator then
+        ItemTextPageText:SetText("\n" .. translated .. "\n\n" .. ITEM_TEXT_FROM .. "\n" .. creator .. "\n")
+    else
+        ItemTextPageText:SetText("\n" .. translated)
+    end
+
+    -- The page length changed, so redo the scroll-child sizing from ItemTextFrame_OnEvent.
+    local scrollChild = ItemTextScrollFrame:GetScrollChild()
+    scrollChild:SetHeight(1)
+    ItemTextScrollFrame:UpdateScrollChildRect()
+
+    if floor(ItemTextScrollFrame:GetVerticalScrollRange()) > 0 then
+        scrollChild:SetHeight(ItemTextScrollFrame:GetHeight() + ItemTextScrollFrame:GetVerticalScrollRange() + 30)
+    end
+
+    ItemTextScrollFrameScrollBar:SetValue(0)
+end
+
+local function InstallItemTextHook()
+    if ItemTextFrame and not ItemTextFrame.matreshkaHooked then
+        ItemTextFrame.matreshkaHooked = true
+        ItemTextFrame:HookScript("OnEvent", TranslateItemText)
+    end
+end
+
+InstallItemTextHook()
+
+if not (ItemTextFrame and ItemTextFrame.matreshkaHooked) then
+    local itemTextInstaller = CreateFrame("Frame")
+    itemTextInstaller:RegisterEvent("ADDON_LOADED")
+    itemTextInstaller:RegisterEvent("PLAYER_LOGIN")
+    itemTextInstaller:SetScript("OnEvent", InstallItemTextHook)
+end
+
+-- Auction house mail. Sender, subject and invoice lines are client strings (English on this client), so
+-- after Blizzard fills the inbox list and the open-mail frame they are swapped for the official
+-- translation from Translations.lua; the invoice lines are rebuilt from GetInboxInvoiceInfo the same
+-- way OpenMail_Update builds them. Item names come from the item database.
+local function GetAuctionMailStrings()
+    local languageCode = MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"]
+    local translations = MatreshkaTranslations and languageCode and MatreshkaTranslations[languageCode]
+
+    return translations and translations.auctionMail
+end
+
+-- Captured "%s" part of a text built from an English client format, or nil when it does not match.
+local function MatchClientFormat(text, englishFormat)
+    if type(text) ~= "string" or type(englishFormat) ~= "string" then
+        return nil
+    end
+
+    return text:match("^" .. escapeMagic(englishFormat):gsub("%%%%s", "(.+)") .. "$")
+end
+
+local function TranslateAuctionItemName(itemText)
+    local translated = GetTranslatedItemName(itemText)
+
+    if translated then
+        return translated
+    end
+
+    local name, count = itemText:match("^(.+) %((%d+)%)$")
+    translated = name and GetTranslatedItemName(name)
+
+    if translated then
+        return translated .. " (" .. count .. ")"
+    end
+
+    return itemText
+end
+
+local function TranslateAuctionSubject(subject, strings)
+    for globalName, translatedFormat in pairs(strings.subjects) do
+        local item = MatchClientFormat(subject, _G[globalName])
+
+        if item then
+            return format(translatedFormat, TranslateAuctionItemName(item))
+        end
+    end
+
+    return nil
+end
+
+local function TranslateAuctionSender(sender, strings)
+    return type(sender) == "string" and strings.senders[(sender:gsub("%s+", " "))] or nil
+end
+
+local function TranslateInboxList()
+    local strings = MatreshkaOptions and MatreshkaOptions["MAIL_TRANSLATIONS"] and GetAuctionMailStrings()
+
+    if not strings then
+        return
+    end
+
+    for i = 1, INBOXITEMS_TO_DISPLAY or 7 do
+        local senderText = _G["MailItem" .. i .. "Sender"]
+        local subjectText = _G["MailItem" .. i .. "Subject"]
+        local sender = senderText and TranslateAuctionSender(senderText:GetText(), strings)
+        local subject = subjectText and TranslateAuctionSubject(subjectText:GetText(), strings)
+
+        if sender then
+            senderText:SetText(sender)
+        end
+
+        if subject then
+            subjectText:SetText(subject)
+        end
+    end
+end
+
+local function TranslateAuctionInvoice(mailID, strings)
+    local invoiceType, itemName, playerName, bid, buyout, _, _, _, _, _, count, commerceAuction = GetInboxInvoiceInfo(mailID)
+
+    if invoiceType and playerName == nil
+        and (commerceAuction or (IsUsingLegacyAuctionClient and not IsUsingLegacyAuctionClient())) then
+        playerName = invoiceType == "buyer" and strings.multipleSellers or strings.multipleBuyers
+    end
+
+    if not (invoiceType and playerName and itemName) then
+        return
+    end
+
+    local item = GetTranslatedItemName(itemName) or itemName
+
+    if count and count > 1 then
+        item = item .. " (" .. count .. ")"
+    end
+
+    local buyMode = "(" .. (bid == buyout and strings.buyout or strings.highBidder) .. ")"
+
+    if invoiceType == "buyer" then
+        OpenMailInvoiceItemLabel:SetText(strings.itemPurchased .. " " .. item .. "  " .. buyMode)
+        OpenMailInvoicePurchaser:SetText(strings.soldBy .. " " .. playerName)
+        OpenMailInvoiceAmountReceived:SetText(strings.amountPaid)
+    elseif invoiceType == "seller" then
+        OpenMailInvoiceItemLabel:SetText(strings.itemSold .. " " .. item)
+        OpenMailInvoicePurchaser:SetText(strings.purchasedBy .. " " .. playerName)
+        OpenMailInvoiceAmountReceived:SetText(strings.amountReceived)
+        OpenMailInvoiceBuyMode:SetText(buyMode)
+    elseif invoiceType == "seller_temp_invoice" then
+        OpenMailInvoiceItemLabel:SetText(strings.itemSold .. " " .. item .. "  " .. buyMode)
+        OpenMailInvoicePurchaser:SetText(strings.purchasedBy .. " " .. playerName)
+        OpenMailInvoiceAmountReceived:SetText(strings.pendingFunds)
+
+        local delay = MatchClientFormat(OpenMailInvoiceMoneyDelay:GetText(), AUCTION_INVOICE_FUNDS_DELAY)
+
+        if delay then
+            OpenMailInvoiceMoneyDelay:SetText(format(strings.fundsDelay, delay))
+        end
+    end
+
+    OpenMailInvoiceSalePrice:SetText(strings.salePrice)
+    OpenMailInvoiceDeposit:SetText(strings.deposit)
+    OpenMailInvoiceHouseCut:SetText(strings.houseCut)
+    OpenMailInvoiceNotYetSent:SetText(strings.fundsNotYetSent)
+end
+
+local function TranslateAuctionOpenMail()
+    local strings = MatreshkaOptions and MatreshkaOptions["MAIL_TRANSLATIONS"] and GetAuctionMailStrings()
+    local mailID = InboxFrame and InboxFrame.openMailID
+
+    if not (strings and mailID) then
+        return
+    end
+
+    local senderName = OpenMailSender and OpenMailSender.Name
+    local sender = senderName and TranslateAuctionSender(senderName:GetText(), strings)
+    local subject = OpenMailSubject and TranslateAuctionSubject(OpenMailSubject:GetText(), strings)
+
+    if sender then
+        senderName:SetText(sender)
+    end
+
+    if subject then
+        OpenMailSubject:SetText(subject)
+    end
+
+    if select(5, GetInboxText(mailID)) then
+        TranslateAuctionInvoice(mailID, strings)
+    end
+end
+
+local auctionMailHooked = false
+
+local function InstallAuctionMailHook()
+    if not auctionMailHooked and type(OpenMail_Update) == "function" and type(InboxFrame_Update) == "function" then
+        auctionMailHooked = true
+        hooksecurefunc("InboxFrame_Update", TranslateInboxList)
+        hooksecurefunc("OpenMail_Update", TranslateAuctionOpenMail)
+    end
+end
+
+InstallAuctionMailHook()
+
+if not auctionMailHooked then
+    local auctionMailInstaller = CreateFrame("Frame")
+    auctionMailInstaller:RegisterEvent("ADDON_LOADED")
+    auctionMailInstaller:RegisterEvent("PLAYER_LOGIN")
+    auctionMailInstaller:SetScript("OnEvent", InstallAuctionMailHook)
+end
+
+-- Mail window labels. They are client strings set from XML or by MailFrame.lua; each one is swapped
+-- only while it still holds the English client string, so the swap is safe to repeat after every
+-- Blizzard refresh. Unnamed labels are found among their parent's regions.
+local MAIL_LABELS = {
+    InboxTitleText = "INBOX",
+    SendMailTitleText = "SENDMAIL",
+    OpenMailTitleText = "OPENMAIL",
+    OpenMailSenderLabel = "FROM",
+    OpenMailSubjectLabel = "MAIL_SUBJECT_LABEL",
+    OpenMailAttachmentText = { "TAKE_ATTACHMENTS", "NO_ATTACHMENTS" },
+    OpenMailReplyButton = "REPLY_MESSAGE",
+    OpenMailDeleteButton = { "DELETE", "MAIL_RETURN" },
+    OpenMailCancelButton = "CLOSE",
+    OpenMailReportSpamButton = "REPORT_SPAM",
+    OpenAllMail = { "OPEN_ALL_MAIL_BUTTON", "OPEN_ALL_MAIL_BUTTON_OPENING" },
+    InboxTooMuchMailText = "INBOX_TOO_MUCH_MAIL",
+    SendMailMoneyText = { "SEND_MONEY", "AMOUNT_TO_SEND", "COD_AMOUNT" },
+    SendMailSendMoneyButtonText = "SEND_MONEY",
+    SendMailCODButtonText = "COD",
+    SendMailMailButton = "SEND_LABEL",
+    SendMailCancelButton = "CANCEL",
+}
+
+local MAIL_REGION_LABELS = {
+    InboxPrevPageButton = "PREV",
+    InboxNextPageButton = "NEXT",
+    SendMailNameEditBox = "MAIL_TO_LABEL",
+    SendMailSubjectEditBox = "MAIL_SUBJECT_LABEL",
+    SendMailCostMoneyFrame = "SEND_MAIL_COST",
+}
+
+local MAIL_TABS = { MailFrameTab1 = "INBOX", MailFrameTab2 = "SENDMAIL" }
+
+local function GetMailFrameStrings()
+    if not (MatreshkaOptions and MatreshkaOptions["MAIL_TRANSLATIONS"]) then
+        return nil
+    end
+
+    local translations = MatreshkaTranslations and MatreshkaTranslations[MatreshkaOptions["SELECTED_LANGUAGE"]]
+
+    return translations and translations.mailFrame
+end
+
+local function SwapMailText(widget, globalNames, strings)
+    if not (widget and widget.GetText) then
+        return false
+    end
+
+    local text = widget:GetText()
+
+    for _, globalName in ipairs(type(globalNames) == "table" and globalNames or { globalNames }) do
+        if text ~= nil and text == _G[globalName] and strings[globalName] then
+            widget:SetText(strings[globalName])
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ApplyMailFrameStrings()
+    local strings = GetMailFrameStrings()
+
+    if not strings then
+        return
+    end
+
+    for widgetName, globalNames in pairs(MAIL_LABELS) do
+        SwapMailText(_G[widgetName], globalNames, strings)
+    end
+
+    for frameName, globalName in pairs(MAIL_REGION_LABELS) do
+        local frame = _G[frameName]
+
+        if frame and frame.GetRegions then
+            for _, region in ipairs({ frame:GetRegions() }) do
+                SwapMailText(region, globalName, strings)
+            end
+        end
+    end
+
+    for tabName, globalName in pairs(MAIL_TABS) do
+        local tab = _G[tabName]
+
+        if SwapMailText(tab, globalName, strings) and PanelTemplates_TabResize then
+            PanelTemplates_TabResize(tab, 0)
+        end
+    end
+end
+
+-- Days left is rebuilt the way InboxFrame_Update formats it; under a day it stays the client's own text.
+local function TranslateInboxExpireTimes()
+    local strings = GetMailFrameStrings()
+
+    if not strings then
+        return
+    end
+
+    local perPage = INBOXITEMS_TO_DISPLAY or 7
+    local firstIndex = ((InboxFrame and InboxFrame.pageNum or 1) - 1) * perPage
+    local numItems = GetInboxNumItems() or 0
+
+    for i = 1, perPage do
+        local expireTime = _G["MailItem" .. i .. "ExpireTime"]
+        local index = firstIndex + i
+
+        if expireTime and index <= numItems then
+            local daysLeft = select(7, GetInboxHeaderInfo(index))
+
+            if daysLeft and daysLeft >= 1 then
+                expireTime:SetText(GREEN_FONT_COLOR_CODE .. format(strings.DAYS_ABBR, floor(daysLeft)) .. " " .. FONT_COLOR_CODE_CLOSE)
+            end
+
+            if expireTime.tooltip == TIME_UNTIL_DELETED then
+                expireTime.tooltip = strings.TIME_UNTIL_DELETED
+            elseif expireTime.tooltip == TIME_UNTIL_RETURNED then
+                expireTime.tooltip = strings.TIME_UNTIL_RETURNED
+            end
+        end
+    end
+end
+
+local mailFrameHooked = false
+
+local function InstallMailFrameHook()
+    if mailFrameHooked or not (MailFrame and type(InboxFrame_Update) == "function"
+        and type(OpenMail_Update) == "function" and type(SendMailRadioButton_OnClick) == "function") then
+        return
+    end
+
+    mailFrameHooked = true
+    MailFrame:HookScript("OnShow", ApplyMailFrameStrings)
+    hooksecurefunc("InboxFrame_Update", ApplyMailFrameStrings)
+    hooksecurefunc("InboxFrame_Update", TranslateInboxExpireTimes)
+    hooksecurefunc("OpenMail_Update", ApplyMailFrameStrings)
+    hooksecurefunc("SendMailRadioButton_OnClick", ApplyMailFrameStrings)
+
+    if OpenAllMail and OpenAllMail.StartOpening and OpenAllMail.StopOpening then
+        hooksecurefunc(OpenAllMail, "StartOpening", ApplyMailFrameStrings)
+        hooksecurefunc(OpenAllMail, "StopOpening", ApplyMailFrameStrings)
+    end
+end
+
+InstallMailFrameHook()
+
+if not mailFrameHooked then
+    local mailFrameInstaller = CreateFrame("Frame")
+    mailFrameInstaller:RegisterEvent("ADDON_LOADED")
+    mailFrameInstaller:RegisterEvent("PLAYER_LOGIN")
+    mailFrameInstaller:SetScript("OnEvent", InstallMailFrameHook)
 end

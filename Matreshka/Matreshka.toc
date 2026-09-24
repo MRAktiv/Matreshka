@@ -3,7 +3,7 @@
 ## Notes: In-game translation of items, spells, NPCs, quests and NPC dialogue.
 ## IconTexture: Interface\AddOns\Matreshka\Icons\matreshka.png
 ## Author: MRAktiv
-## Version: 2.8.0
+## Version: 2.9.0
 ## SavedVariables: MatreshkaOptions, MatreshkaUserData, MatreshkaMissing
 ## OptionalDeps: LibStub, LibUIDropDownMenu
 
@@ -24,6 +24,7 @@ Database/Quests/ru.lua
 Database/Quests/en.lua
 Database/Gossip/ru.lua
 Database/Mail/ru.lua
+Database/Books/ru.lua
 Database/Chat/ru_1.lua
 Database/Chat/ru_2.lua
 Database/Chat/ru_3.lua
@@ -32,6 +33,10 @@ Database/Chat/ru_5.lua
 Database/Chat/ru_6.lua
 Database/Chat/ru_7.lua
 Database/Chat/ru_8.lua
+Database/Chat/ru_9.lua
+Database/Chat/ru_10.lua
+Database/Chat/ru_11.lua
+Database/Chat/ru_12.lua
 Database/Chat/ru_extra.lua
 
 Localization/Translations.lua
