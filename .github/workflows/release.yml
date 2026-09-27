@@ -60,12 +60,29 @@ jobs:
             exit 0
           fi
 
-          # id версии игры для TBC Classic 2.5.5 (на новых патчах поменять строку версии)
-          versions="$(curl -sf -H "X-Api-Token: $CF_API_KEY" https://wow.curseforge.com/api/game/versions)"
-          gv_id="$(printf '%s' "$versions" | python3 -c "import sys,json; d=json.load(sys.stdin); print(next(v['id'] for v in d if v['name']=='2.5.5'))")"
-          echo "CurseForge game version id (2.5.5): $gv_id"
+          # id версий игры: из номеров "## Interface" в Matreshka.toc (11509 -> 1.15.9, 20506 -> 2.5.6).
+          # Если точной версии на CurseForge ещё нет, берётся старшая в той же ветке (1.15.x, 2.5.x).
+          curl -sf -H "X-Api-Token: $CF_API_KEY" https://wow.curseforge.com/api/game/versions > cf-versions.json
+          gv_ids="$(python3 - <<'PY'
+          import json, re, sys
+          toc = open("Matreshka/Matreshka.toc", encoding="utf-8-sig").read()
+          interfaces = [int(x) for x in re.search(r"^## Interface:(.+)$", toc, re.M).group(1).split(",")]
+          versions = [v for v in json.load(open("cf-versions.json")) if re.fullmatch(r"\d+\.\d+\.\d+", v["name"])]
+          ids = []
+          for interface in interfaces:
+              name = "%d.%d.%d" % (interface // 10000, interface // 100 % 100, interface % 100)
+              branch = [v for v in versions if v["name"].rsplit(".", 1)[0] == name.rsplit(".", 1)[0]]
+              if not branch:
+                  sys.exit("CurseForge: нет версий ветки %s" % name)
+              exact = [v for v in branch if v["name"] == name]
+              pick = exact[0] if exact else max(branch, key=lambda v: [int(p) for p in v["name"].split(".")])
+              print("Interface %d -> CurseForge %s (id %d)" % (interface, pick["name"], pick["id"]), file=sys.stderr)
+              ids.append(pick["id"])
+          print(",".join(str(i) for i in ids))
+          PY
+          )"
 
-          metadata="$(GV="$gv_id" python3 -c "import json,os; print(json.dumps({'changelog': open('release-notes.md', encoding='utf-8').read(), 'changelogType': 'markdown', 'releaseType': 'release', 'gameVersions': [int(os.environ['GV'])]}))")"
+          metadata="$(GV="$gv_ids" python3 -c "import json,os; print(json.dumps({'changelog': open('release-notes.md', encoding='utf-8').read(), 'changelogType': 'markdown', 'releaseType': 'release', 'gameVersions': [int(i) for i in os.environ['GV'].split(',')]}))")"
 
           curl -sf -X POST "https://wow.curseforge.com/api/projects/${CF_PROJECT_ID}/upload-file" \
             -H "X-Api-Token: $CF_API_KEY" \

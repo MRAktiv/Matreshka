@@ -1,6 +1,7 @@
 # Matreshka
 
-Внутриигровой русификатор для **World of Warcraft (TBC Anniversary, клиент 2.5.x)**.
+Внутриигровой русификатор для **World of Warcraft: TBC Anniversary (клиент 2.5.x) и Classic Era
+(клиент 1.15.x, включая Hardcore и Season of Discovery)**.
 Переводит предметы, способности, NPC и квесты прямо в их родных окнах и подсказках —
 текст подставляется на месте, без второго окна и без переключения режимов.
 
@@ -24,8 +25,9 @@
 
 ## Установка
 
-1. Скопируйте папки `Matreshka` и `Matreshka_Options` в каталог аддонов:
-   `World of Warcraft\_anniversary_\Interface\AddOns\`
+1. Скопируйте папки `Matreshka` и `Matreshka_Options` в каталог аддонов своей версии игры:
+   `World of Warcraft\_anniversary_\Interface\AddOns\` для TBC Anniversary,
+   `World of Warcraft\_classic_era_\Interface\AddOns\` для Classic Era, Hardcore и Season of Discovery.
 2. Запустите игру, на экране выбора персонажа откройте **AddOns** и убедитесь, что
    **Matreshka** включён.
 3. Войдите в игру и откройте настройки командой `/matreshka`.
