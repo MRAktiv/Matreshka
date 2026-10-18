@@ -26,6 +26,43 @@ local function GetDataByID(entityType, dataId)
     return Matreshka_GetEntry(entityType, languageCode, dataId)
 end
 
+-- Category switch from the options; the master toggle (/matreshka off, key binding) turns all of them off
+local function IsTranslationOn(optionKey)
+    return MatreshkaOptions and MatreshkaOptions["TRANSLATIONS_ENABLED"] ~= false and MatreshkaOptions[optionKey]
+end
+
+-- Window labels swapped for a translation, with the client text they replaced, so switching a
+-- category off puts the client text back without /reload. Kept here, not on Blizzard frames.
+local replacedTexts = {}
+
+local function ReplaceText(widget, translated, optionKey, afterRestore)
+    local current = widget:GetText()
+
+    if current == translated then
+        return
+    end
+
+    replacedTexts[widget] = { original = current, translated = translated, optionKey = optionKey, afterRestore = afterRestore }
+    widget:SetText(translated)
+end
+
+-- Text the client has rewritten since is left alone
+local function RestoreSwitchedOffTexts()
+    for widget, entry in pairs(replacedTexts) do
+        if not IsTranslationOn(entry.optionKey) then
+            if widget:GetText() == entry.translated then
+                widget:SetText(entry.original)
+
+                if entry.afterRestore then
+                    entry.afterRestore(widget, entry.original)
+                end
+            end
+
+            replacedTexts[widget] = nil
+        end
+    end
+end
+
 -- Apply a user override (in-game edit) on top of the base database for one entity
 local function GetEffectiveEntry(userType, id)
     local languageCode = MatreshkaOptions["SELECTED_LANGUAGE"]
@@ -475,7 +512,7 @@ local function AddItemSuffixTranslations(map, tooltip, englishEntry, translatedE
 end
 
 local function HandleItemTooltip(tooltip)
-    if not MatreshkaOptions or not MatreshkaOptions["ITEM_TRANSLATIONS"] then
+    if not IsTranslationOn("ITEM_TRANSLATIONS") then
         return
     end
 
@@ -525,7 +562,7 @@ local function HandleItemTooltip(tooltip)
 end
 
 local function HandleSpellTooltip(tooltip)
-    if not MatreshkaOptions or not MatreshkaOptions["SPELL_TRANSLATIONS"] then
+    if not IsTranslationOn("SPELL_TRANSLATIONS") then
         return
     end
 
@@ -575,7 +612,7 @@ local function HandleSpellTooltip(tooltip)
 end
 
 local function HandleUnitTooltip(tooltip)
-    if not MatreshkaOptions or not MatreshkaOptions["NPC_TRANSLATIONS"] then
+    if not IsTranslationOn("NPC_TRANSLATIONS") then
         return
     end
 
@@ -659,8 +696,7 @@ end
 
 -- Quest translation: substitute the native quest frame text with the translation in place
 local function GetReplacementForCurrentQuestGiver(field)
-    if not MatreshkaOptions
-        or not MatreshkaOptions["QUEST_TRANSLATIONS"] then
+    if not IsTranslationOn("QUEST_TRANSLATIONS") then
         return nil
     end
 
@@ -697,8 +733,7 @@ if GetQuestLogQuestText then
     GetQuestLogQuestText = function(...)
         local description, objective = originalGetQuestLogQuestText(...)
 
-        if MatreshkaOptions
-            and MatreshkaOptions["QUEST_TRANSLATIONS"] then
+        if IsTranslationOn("QUEST_TRANSLATIONS") then
             local selectedQuestIndex = GetQuestLogSelection()
 
             if selectedQuestIndex and selectedQuestIndex > 0 then
@@ -722,8 +757,7 @@ end
 
 if QuestLog_Update then
     hooksecurefunc("QuestLog_Update", function()
-        if not MatreshkaOptions
-            or not MatreshkaOptions["QUEST_TRANSLATIONS"]
+        if not IsTranslationOn("QUEST_TRANSLATIONS")
             or not QuestLogQuestTitle then
             return
         end
@@ -742,8 +776,7 @@ end
 
 if QuestInfo_Display then
     hooksecurefunc("QuestInfo_Display", function()
-        if not MatreshkaOptions
-            or not MatreshkaOptions["QUEST_TRANSLATIONS"] then
+        if not IsTranslationOn("QUEST_TRANSLATIONS") then
             return
         end
 
@@ -791,8 +824,7 @@ end
 -- QuestLogItemChooseText / QuestLogItemReceiveText), refreshed by QuestLog_UpdateQuestDetails.
 if QuestLog_UpdateQuestDetails then
     hooksecurefunc("QuestLog_UpdateQuestDetails", function()
-        if not MatreshkaOptions
-            or not MatreshkaOptions["QUEST_TRANSLATIONS"] then
+        if not IsTranslationOn("QUEST_TRANSLATIONS") then
             return
         end
 
@@ -921,7 +953,7 @@ end
 -- restoring the English name, so the translation is re-applied per button. Fully guarded: on a
 -- different client layout this simply does nothing instead of erroring.
 local function TranslateSpellbookButton(button)
-    if not (MatreshkaOptions and MatreshkaOptions["SPELL_TRANSLATIONS"]) then
+    if not IsTranslationOn("SPELL_TRANSLATIONS") then
         return
     end
 
@@ -1084,7 +1116,7 @@ local function TranslateGossipElement(element)
 end
 
 local function TranslateGossipFrame(frame)
-    if not (MatreshkaOptions and MatreshkaOptions["GOSSIP_TRANSLATIONS"]) then
+    if not IsTranslationOn("GOSSIP_TRANSLATIONS") then
         return
     end
 
@@ -1182,7 +1214,7 @@ end
 -- (author, channel, ...) untouched. Returning false keeps the message; the extra return values
 -- replace the message text.
 local function TranslateChatMessage(self, event, msg, ...)
-    if not (MatreshkaOptions and MatreshkaOptions["NPC_CHAT_TRANSLATIONS"]) then
+    if not IsTranslationOn("NPC_CHAT_TRANSLATIONS") then
         return false
     end
 
@@ -1208,7 +1240,7 @@ end
 -- Applied at login when chat translation is on; toggling the option takes effect after /reload, like
 -- the language switch. Options are restored from SavedVariables only by PLAYER_LOGIN, hence the event.
 local function ApplyChatVerbs()
-    if not (MatreshkaOptions and MatreshkaOptions["NPC_CHAT_TRANSLATIONS"]) then
+    if not IsTranslationOn("NPC_CHAT_TRANSLATIONS") then
         return
     end
 
@@ -1225,7 +1257,8 @@ chatVerbFrame:SetScript("OnEvent", ApplyChatVerbs)
 -- Friend online/offline notices are built from client global strings, like the chat verbs above.
 -- Swap them for Blizzard's official Russian wording so those system lines read in Russian too.
 local function ApplySystemStrings()
-    if not (MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"] == "ru") then
+    if not (MatreshkaOptions and MatreshkaOptions["TRANSLATIONS_ENABLED"] ~= false
+        and MatreshkaOptions["SELECTED_LANGUAGE"] == "ru") then
         return
     end
 
@@ -1270,7 +1303,7 @@ local function RecordMissingMail(key)
 end
 
 local function TranslateOpenMail()
-    if not (MatreshkaOptions and MatreshkaOptions["MAIL_TRANSLATIONS"]) then
+    if not IsTranslationOn("MAIL_TRANSLATIONS") then
         return
     end
 
@@ -1378,7 +1411,7 @@ local function GetTranslatedItemName(englishName)
 end
 
 local function TranslateItemText(self, event)
-    if not (MatreshkaOptions and MatreshkaOptions["BOOK_TRANSLATIONS"]) then
+    if not IsTranslationOn("BOOK_TRANSLATIONS") then
         return
     end
 
@@ -1504,7 +1537,7 @@ local function TranslateAuctionSender(sender, strings)
 end
 
 local function TranslateInboxList()
-    local strings = MatreshkaOptions and MatreshkaOptions["MAIL_TRANSLATIONS"] and GetAuctionMailStrings()
+    local strings = IsTranslationOn("MAIL_TRANSLATIONS") and GetAuctionMailStrings()
 
     if not strings then
         return
@@ -1574,7 +1607,7 @@ local function TranslateAuctionInvoice(mailID, strings)
 end
 
 local function TranslateAuctionOpenMail()
-    local strings = MatreshkaOptions and MatreshkaOptions["MAIL_TRANSLATIONS"] and GetAuctionMailStrings()
+    local strings = IsTranslationOn("MAIL_TRANSLATIONS") and GetAuctionMailStrings()
     local mailID = InboxFrame and InboxFrame.openMailID
 
     if not (strings and mailID) then
@@ -1651,7 +1684,7 @@ local MAIL_REGION_LABELS = {
 local MAIL_TABS = { MailFrameTab1 = "INBOX", MailFrameTab2 = "SENDMAIL" }
 
 local function GetMailFrameStrings()
-    if not (MatreshkaOptions and MatreshkaOptions["MAIL_TRANSLATIONS"]) then
+    if not IsTranslationOn("MAIL_TRANSLATIONS") then
         return nil
     end
 
@@ -1660,7 +1693,7 @@ local function GetMailFrameStrings()
     return translations and translations.mailFrame
 end
 
-local function SwapMailText(widget, globalNames, strings)
+local function SwapMailText(widget, globalNames, strings, afterRestore)
     if not (widget and widget.GetText) then
         return false
     end
@@ -1669,12 +1702,18 @@ local function SwapMailText(widget, globalNames, strings)
 
     for _, globalName in ipairs(type(globalNames) == "table" and globalNames or { globalNames }) do
         if text ~= nil and text == _G[globalName] and strings[globalName] then
-            widget:SetText(strings[globalName])
+            ReplaceText(widget, strings[globalName], "MAIL_TRANSLATIONS", afterRestore)
             return true
         end
     end
 
     return false
+end
+
+local function ResizeMailTab(tab)
+    if PanelTemplates_TabResize then
+        PanelTemplates_TabResize(tab, 0)
+    end
 end
 
 local function ApplyMailFrameStrings()
@@ -1701,8 +1740,8 @@ local function ApplyMailFrameStrings()
     for tabName, globalName in pairs(MAIL_TABS) do
         local tab = _G[tabName]
 
-        if SwapMailText(tab, globalName, strings) and PanelTemplates_TabResize then
-            PanelTemplates_TabResize(tab, 0)
+        if SwapMailText(tab, globalName, strings, ResizeMailTab) then
+            ResizeMailTab(tab)
         end
     end
 end
@@ -1767,4 +1806,402 @@ if not mailFrameHooked then
     mailFrameInstaller:RegisterEvent("ADDON_LOADED")
     mailFrameInstaller:RegisterEvent("PLAYER_LOGIN")
     mailFrameInstaller:SetScript("OnEvent", InstallMailFrameHook)
+end
+
+-- Game interface: tooltips, window tabs, reputation, the social window, the Esc menu and dropdown
+-- menus. The Russian side is the official ruRU client string stored under the same GlobalStrings
+-- name (Database/Interface); the English side is read from the running client, so only text equal
+-- to the client's own string is replaced. Faction names are looked up by faction ID.
+local interfaceExact, interfaceFormats
+
+local function GetInterfaceData()
+    local languageCode = MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"]
+
+    return Matreshka_Interface and languageCode and Matreshka_Interface[languageCode]
+end
+
+-- Lua pattern for text built from a client format string; each conversion becomes a capture.
+local function FormatToPattern(englishFormat)
+    local parts, position = {}, 1
+
+    while true do
+        local first, last = englishFormat:find("%%[%d%.%-%+# ]*[sdfiguxXc%%]", position)
+
+        if not first then
+            break
+        end
+
+        parts[#parts + 1] = escapeMagic(englishFormat:sub(position, first - 1))
+        parts[#parts + 1] = englishFormat:sub(last, last) == "%" and "%%" or "(.-)"
+        position = last + 1
+    end
+
+    parts[#parts + 1] = escapeMagic(englishFormat:sub(position))
+
+    return "^" .. table.concat(parts) .. "$"
+end
+
+local function BuildInterfaceLookup()
+    interfaceExact, interfaceFormats = {}, {}
+
+    local data = GetInterfaceData()
+
+    if not data then
+        return
+    end
+
+    for name, translated in pairs(data.strings) do
+        local english = _G[name]
+
+        if type(english) == "string" and english ~= "" and english ~= translated then
+            if english:gsub("%%%%", ""):find("%%[%d%.%-%+# ]*[sdfiguxXc]") then
+                interfaceFormats[#interfaceFormats + 1] = {
+                    prefix = english:match("^[^%%]*"),
+                    pattern = FormatToPattern(english),
+                    translated = translated,
+                }
+            else
+                interfaceExact[english] = translated
+            end
+        end
+    end
+end
+
+-- "Title |cffffd200(Key)|r": the key binding suffix MicroButtonTooltipText adds to a title
+local KEY_BINDING_SUFFIX = "^(.-)( |c%x%x%x%x%x%x%x%x%(.+%)|r)$"
+
+local function TranslateInterfaceText(text)
+    if type(text) ~= "string" or text == "" then
+        return nil
+    end
+
+    if not interfaceExact then
+        BuildInterfaceLookup()
+    end
+
+    local translated = interfaceExact[text]
+
+    if translated then
+        return translated
+    end
+
+    local base, keySuffix = text:match(KEY_BINDING_SUFFIX)
+
+    if base and interfaceExact[base] then
+        return interfaceExact[base] .. keySuffix
+    end
+
+    for _, entry in ipairs(interfaceFormats) do
+        if text:sub(1, #entry.prefix) == entry.prefix then
+            local values = { text:match(entry.pattern) }
+
+            if values[1] then
+                for i, value in ipairs(values) do
+                    values[i] = interfaceExact[value] or value
+                end
+
+                local ok, result = pcall(format, entry.translated, unpack(values))
+
+                if ok then
+                    return result
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+local interfaceTooltipBusy = false
+
+local function TranslateInterfaceTooltip(tooltip)
+    if interfaceTooltipBusy or not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    local tooltipName = tooltip:GetName()
+    local changed = false
+
+    for i = 1, tooltip:NumLines() do
+        local line = _G[tooltipName .. "TextLeft" .. i]
+        local translated = line and TranslateInterfaceText(line:GetText())
+
+        if translated then
+            line:SetText(translated)
+            changed = true
+        end
+    end
+
+    if changed then
+        interfaceTooltipBusy = true
+        tooltip:Show()
+        interfaceTooltipBusy = false
+    end
+end
+
+hooksecurefunc(GameTooltip, "Show", TranslateInterfaceTooltip)
+
+-- Every font string of a frame and its children whose text is a known client string
+local function TranslateStaticTexts(frame)
+    if not frame or frame:IsForbidden() then
+        return
+    end
+
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if region:GetObjectType() == "FontString" then
+            local translated = TranslateInterfaceText(region:GetText())
+
+            if translated then
+                ReplaceText(region, translated, "INTERFACE_TRANSLATIONS")
+            end
+        end
+    end
+
+    for _, child in ipairs({ frame:GetChildren() }) do
+        TranslateStaticTexts(child)
+    end
+end
+
+-- minWidth/maxWidth as in the tab template's own resize call
+local function TranslateTabs(tabPrefix, count, minWidth, maxWidth)
+    local function Resize(tab)
+        if PanelTemplates_TabResize then
+            PanelTemplates_TabResize(tab, 0, nil, minWidth, maxWidth)
+        end
+    end
+
+    for i = 1, count do
+        local tab = _G[tabPrefix .. i]
+        local translated = tab and TranslateInterfaceText(tab:GetText())
+
+        if translated then
+            ReplaceText(tab, translated, "INTERFACE_TRANSLATIONS", Resize)
+            Resize(tab)
+        end
+    end
+end
+
+-- CharacterFrameTabButtonTemplate (character and social window tabs) resizes with these limits on show
+local function TranslateTemplateTabs(tabPrefix, count, parent)
+    TranslateTabs(tabPrefix, count, 36, parent and parent.maxTabWidth or 88)
+end
+
+local function TranslateCharacterTabs()
+    if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        TranslateTemplateTabs("CharacterFrameTab", 5, CharacterFrame)
+    end
+end
+
+-- Rows are rebuilt the way ReputationFrame_Update fills them; names come by faction ID.
+local function TranslateReputationFrame()
+    local data = GetInterfaceData()
+
+    if not (data and IsTranslationOn("INTERFACE_TRANSLATIONS")) then
+        return
+    end
+
+    local offset = FauxScrollFrame_GetOffset(ReputationListScrollFrame)
+    local numFactions = GetNumFactions()
+
+    for i = 1, NUM_FACTIONS_DISPLAYED do
+        local factionIndex = offset + i
+
+        if factionIndex > numFactions then
+            break
+        end
+
+        local name, _, standingID, _, _, _, _, _, isHeader, _, _, isWatched, _, factionID = GetFactionInfo(factionIndex)
+        local faction = factionID and data.factions[factionID]
+        local translatedName = faction and faction[1] or TranslateInterfaceText(name)
+
+        if isHeader then
+            local header = _G["ReputationHeader" .. i]
+
+            if translatedName and header and header.Text then
+                ReplaceText(header.Text, translatedName, "INTERFACE_TRANSLATIONS")
+            end
+        else
+            local bar = _G["ReputationBar" .. i]
+            local nameText = _G["ReputationBar" .. i .. "FactionName"]
+            local standingText = _G["ReputationBar" .. i .. "FactionStanding"]
+            local standing = data.strings["FACTION_STANDING_LABEL" .. standingID]
+
+            if translatedName and nameText then
+                local check = _G["ReputationBar" .. i .. "Check"]
+
+                -- The watched checkmark sits right after the name, as ReputationFrame_Update places it
+                local function PlaceCheck()
+                    if isWatched and check then
+                        check:SetPoint("LEFT", nameText, "LEFT", nameText:GetStringWidth(), 0)
+                    end
+                end
+
+                ReplaceText(nameText, translatedName, "INTERFACE_TRANSLATIONS", PlaceCheck)
+                PlaceCheck()
+            end
+
+            -- The bar's OnLeave puts standingText back on the label
+            if standing and standingText then
+                ReplaceText(standingText, standing, "INTERFACE_TRANSLATIONS", function(_, original)
+                    bar.standingText = original
+                end)
+                bar.standingText = standing
+            end
+
+            if factionIndex == GetSelectedFaction() and ReputationDetailFrame and ReputationDetailFrame:IsShown() then
+                if translatedName then
+                    ReplaceText(ReputationDetailFactionName, translatedName, "INTERFACE_TRANSLATIONS")
+                end
+
+                if faction and faction[2] ~= "" then
+                    ReplaceText(ReputationDetailFactionDescription, faction[2], "INTERFACE_TRANSLATIONS")
+                end
+            end
+        end
+    end
+end
+
+local function TranslateReputationTexts()
+    if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        TranslateStaticTexts(ReputationFrame)
+        TranslateStaticTexts(ReputationDetailFrame)
+    end
+end
+
+local function TranslateSocialWindow()
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    TranslateTemplateTabs("FriendsFrameTab", 4, FriendsFrame)
+    TranslateTabs("FriendsTabHeaderTab", 2)
+    TranslateStaticTexts(FriendsFrame)
+    TranslateStaticTexts(RaidFrame)
+end
+
+local function TranslateGameMenu(menu)
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    for button in menu.buttonPool:EnumerateActive() do
+        local translated = TranslateInterfaceText(button:GetText())
+
+        if translated then
+            button:SetText(translated)
+        end
+    end
+
+    local header = menu.Header
+    local translated = header and header.Text and TranslateInterfaceText(header.Text:GetText())
+
+    if translated then
+        header:Setup(translated)
+    end
+end
+
+-- Dropdown menus: an extra initializer per element swaps the label before the menu measures its
+-- width. Blizzard runs initializers through secureexecuterange, so menu actions stay untainted.
+local INTERFACE_MENU_TAGS = {
+    "MENU_FCF_TAB", "MENU_CHAT_SHORTCUTS",
+    "MENU_UNIT_SELF", "MENU_UNIT_PET", "MENU_UNIT_OTHERPET", "MENU_UNIT_PARTY", "MENU_UNIT_PLAYER",
+    "MENU_UNIT_ENEMY_PLAYER", "MENU_UNIT_RAID_PLAYER", "MENU_UNIT_RAID", "MENU_UNIT_FRIEND",
+    "MENU_UNIT_FRIEND_OFFLINE", "MENU_UNIT_BN_FRIEND", "MENU_UNIT_BN_FRIEND_OFFLINE", "MENU_UNIT_GUILD",
+    "MENU_UNIT_GUILD_OFFLINE", "MENU_UNIT_CHAT_ROSTER", "MENU_UNIT_TARGET", "MENU_UNIT_FOCUS", "MENU_UNIT_BOSS",
+    "MENU_UNIT_ARENAENEMY", "MENU_UNIT_TEAM", "MENU_UNIT_VEHICLE", "MENU_UNIT_RAID_TARGET_ICON",
+    "MENU_UNIT_WORLD_STATE_SCORE", "MENU_UNIT_RECENT_ALLY", "MENU_UNIT_RECENT_ALLY_OFFLINE",
+}
+
+local function TranslateMenuElement(frame)
+    local fontString = frame.fontString
+    local translated = fontString and TranslateInterfaceText(fontString:GetText())
+
+    if translated then
+        fontString:SetTextToFit(translated)
+    end
+end
+
+local function AddMenuTranslation(description)
+    for _, element in description:EnumerateElementDescriptions() do
+        element:AddInitializer(TranslateMenuElement)
+        AddMenuTranslation(element)
+    end
+end
+
+local function TranslateMenu(_, rootDescription)
+    if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        AddMenuTranslation(rootDescription)
+    end
+end
+
+local interfaceHooked = {}
+
+local function InstallInterfaceHooks()
+    if not interfaceHooked.menus and Menu and Menu.ModifyMenu then
+        interfaceHooked.menus = true
+
+        for _, tag in ipairs(INTERFACE_MENU_TAGS) do
+            Menu.ModifyMenu(tag, TranslateMenu)
+        end
+    end
+
+    if not interfaceHooked.gameMenu and GameMenuFrame and GameMenuFrame.InitButtons then
+        interfaceHooked.gameMenu = true
+        hooksecurefunc(GameMenuFrame, "InitButtons", TranslateGameMenu)
+    end
+
+    if not interfaceHooked.character and CharacterFrame then
+        interfaceHooked.character = true
+        CharacterFrame:HookScript("OnShow", TranslateCharacterTabs)
+    end
+
+    if not interfaceHooked.reputation and ReputationFrame and type(ReputationFrame_Update) == "function" then
+        interfaceHooked.reputation = true
+        hooksecurefunc("ReputationFrame_Update", TranslateReputationFrame)
+        ReputationFrame:HookScript("OnShow", TranslateReputationTexts)
+
+        if ReputationDetailFrame then
+            ReputationDetailFrame:HookScript("OnShow", TranslateReputationTexts)
+        end
+    end
+
+    if not interfaceHooked.social and FriendsFrame and type(FriendsFrame_Update) == "function" then
+        interfaceHooked.social = true
+        FriendsFrame:HookScript("OnShow", TranslateSocialWindow)
+        hooksecurefunc("FriendsFrame_Update", TranslateSocialWindow)
+
+        if type(GuildStatus_Update) == "function" then
+            hooksecurefunc("GuildStatus_Update", TranslateSocialWindow)
+        end
+    end
+end
+
+InstallInterfaceHooks()
+
+local interfaceInstaller = CreateFrame("Frame")
+interfaceInstaller:RegisterEvent("ADDON_LOADED")
+interfaceInstaller:RegisterEvent("PLAYER_LOGIN")
+interfaceInstaller:SetScript("OnEvent", InstallInterfaceHooks)
+
+-- Called by the master switch and the category checkboxes: open windows get the client text back
+-- for switched-off categories and are translated at once for switched-on ones.
+function Matreshka_RefreshTranslations()
+    RestoreSwitchedOffTexts()
+
+    if interfaceHooked.character and CharacterFrame:IsShown() then
+        TranslateCharacterTabs()
+    end
+
+    if interfaceHooked.reputation and ReputationFrame:IsShown() then
+        TranslateReputationTexts()
+        TranslateReputationFrame()
+    end
+
+    if interfaceHooked.social and FriendsFrame:IsShown() then
+        TranslateSocialWindow()
+    end
+
+    if mailFrameHooked and MailFrame:IsShown() then
+        ApplyMailFrameStrings()
+    end
 end

@@ -96,6 +96,13 @@ local function CreateOptionCheckbox(parent, name, labelText, optionKey, onToggle
     return checkbox
 end
 
+-- Window labels follow a switch at once (Matreshka.lua); called after the option value changes
+local function RefreshTranslations()
+    if Matreshka_RefreshTranslations then
+        Matreshka_RefreshTranslations()
+    end
+end
+
 -- Total across every bucket of the missing-translation database (MatreshkaMissing SavedVariable)
 local function CountMissingTotal()
     local total = 0
@@ -139,6 +146,7 @@ end
 
 local function getDefaultOptions(optionsTranslations)
     return {
+        TRANSLATIONS_ENABLED = true,
         QUEST_TRANSLATIONS = true,
         CUSTOM_FONT_ENABLED = true,
         ITEM_TRANSLATIONS = true,
@@ -151,6 +159,7 @@ local function getDefaultOptions(optionsTranslations)
         NPC_CHAT_TRANSLATIONS = true,
         MAIL_TRANSLATIONS = true,
         BOOK_TRANSLATIONS = true,
+        INTERFACE_TRANSLATIONS = true,
         SHOW_IDS = false,
         SCAN_MISSING = false,
         SELECTED_LANGUAGE = 'ru',
@@ -268,17 +277,21 @@ local function InitializeOptions()
     npcChatCheckbox:SetPoint("TOPLEFT", gossipCheckbox, "BOTTOMLEFT", 0, 2)
 
     local mailCheckbox = CreateOptionCheckbox(optionsContainer, "MatreshkaMailCheckbox",
-        optionsTranslations["mailText"], "MAIL_TRANSLATIONS")
+        optionsTranslations["mailText"], "MAIL_TRANSLATIONS", RefreshTranslations)
     mailCheckbox:SetPoint("TOPLEFT", npcChatCheckbox, "BOTTOMLEFT", 0, 2)
 
     local bookCheckbox = CreateOptionCheckbox(optionsContainer, "MatreshkaBookCheckbox",
         optionsTranslations["bookText"], "BOOK_TRANSLATIONS")
     bookCheckbox:SetPoint("TOPLEFT", mailCheckbox, "BOTTOMLEFT", 0, 2)
 
+    local interfaceCheckbox = CreateOptionCheckbox(optionsContainer, "MatreshkaInterfaceCheckbox",
+        optionsTranslations["interfaceText"], "INTERFACE_TRANSLATIONS", RefreshTranslations)
+    interfaceCheckbox:SetPoint("TOPLEFT", bookCheckbox, "BOTTOMLEFT", 0, 2)
+
     -- Чекбокс показа ID (предметы/квесты/заклинания/NPC) — чтобы игрок мог прислать номер при ошибке перевода
     showIdsCheckbox = CreateOptionCheckbox(optionsContainer, "MatreshkaShowIDsCheckbox",
         optionsTranslations["showIdsText"], "SHOW_IDS")
-    showIdsCheckbox:SetPoint("TOPLEFT", bookCheckbox, "BOTTOMLEFT", 0, -10)
+    showIdsCheckbox:SetPoint("TOPLEFT", interfaceCheckbox, "BOTTOMLEFT", 0, -10)
 
     -- Кнопка открытия окна экспорта правок перевода (окно живёт в MatreshkaEditorFrame.lua)
     local exportButton = CreateFrame("Button", nil, optionsContainer, "UIPanelButtonTemplate")
@@ -362,10 +375,40 @@ end
 optionsFrame:RegisterEvent("ADDON_LOADED")
 optionsFrame:SetScript("OnEvent", addonLoaded)
 
--- Чат-команды для быстрого открытия настроек мода: /matreshka и /mtlang
+-- Общий выключатель перевода; подписи открытых окон переключаются сразу, остальное при следующем показе
+local function SetTranslationsEnabled(enabled)
+    MatreshkaOptions = MatreshkaOptions or {}
+    MatreshkaOptions["TRANSLATIONS_ENABLED"] = enabled
+    RefreshTranslations()
+
+    if enabled then
+        print("|cFFFFD100Matreshka|r: перевод включён.")
+    else
+        print("|cFFFFD100Matreshka|r: перевод выключен. Включить: /matreshka on")
+    end
+end
+
+-- Невидимая кнопка под клавишу из Bindings.xml (раздел «Matreshka» в назначении клавиш)
+BINDING_HEADER_MATRESHKA = "Matreshka"
+_G["BINDING_NAME_CLICK MatreshkaToggleButton:LeftButton"] = "Включить/выключить перевод"
+
+local toggleButton = CreateFrame("Button", "MatreshkaToggleButton", UIParent)
+toggleButton:RegisterForClicks("AnyDown")
+toggleButton:SetScript("OnClick", function()
+    SetTranslationsEnabled(MatreshkaOptions and MatreshkaOptions["TRANSLATIONS_ENABLED"] == false)
+end)
+
+-- Чат-команды: /matreshka и /mtlang открывают настройки, с on/off включают и выключают перевод
 SLASH_MATRESHKA1 = "/matreshka"
 SLASH_MATRESHKA2 = "/mtlang"
-SlashCmdList["MATRESHKA"] = function()
+SlashCmdList["MATRESHKA"] = function(msg)
+    local command = strlower(strtrim(msg or ""))
+
+    if command == "on" or command == "off" then
+        SetTranslationsEnabled(command == "on")
+        return
+    end
+
     if settingsCategory and Settings and Settings.OpenToCategory then
         -- Современный клиент: открываем сразу на странице мода по ID категории
         Settings.OpenToCategory(settingsCategory:GetID())

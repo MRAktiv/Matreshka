@@ -94,7 +94,7 @@ local function CreateWelcomeFrame()
 
     local cats = FS(f, 14, INK_SOFT, 396, "LEFT")
     cats:SetPoint("TOPLEFT", catsLabel, "BOTTOMLEFT", 0, -5)
-    cats:SetText("Предметы • Заклинания и таланты • Задания • Существа и NPC • Диалоги NPC")
+    cats:SetText("Предметы • Заклинания и таланты • Задания • Существа и NPC • Диалоги и реплики NPC • Почта • Книги • Интерфейс игры")
 
     local hint = FS(f, 14, INK, 396, "LEFT")
     hint:SetPoint("TOPLEFT", cats, "BOTTOMLEFT", 0, -11)
