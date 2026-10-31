@@ -10,6 +10,14 @@ local textColorCodes = {
     ["[q5]"] = "|cFFFF8000"
 }
 
+-- Retail client: no Blizzard globals are written there (chat runs on secret values and breaks on taint)
+local IS_RETAIL = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
+
+-- Retail hands out secret values in restricted states; their text cannot be read
+local function IsReadable(value)
+    return not (issecretvalue and issecretvalue(value))
+end
+
 -- Helper functions
 -- Escape every Lua pattern metacharacter so arbitrary text matches literally.
 local function escapeMagic(s)
@@ -162,7 +170,8 @@ end
 
 local function GetTooltipLeftText(tooltip, lineIndex)
     local fontString = _G[tooltip:GetName() .. "TextLeft" .. lineIndex]
-    return fontString and fontString:GetText()
+    local text = fontString and fontString:GetText()
+    return IsReadable(text) and text or nil
 end
 
 -- Lazy index: normalized english spell name -> list of spell ids (used for talents, whose spell
@@ -275,6 +284,17 @@ local function BuildEntityMap(englishEntry, translatedEntry, nameOnly, map)
     return map
 end
 
+-- Retail ships no English names: the name line the client shows is paired with the translation
+local function AddLiveNamePair(map, tooltip, englishEntry, translatedEntry)
+    if IS_RETAIL and translatedEntry and translatedEntry.name and not (englishEntry and englishEntry.name) then
+        local liveName = GetTooltipLeftText(tooltip, 1)
+
+        if liveName and liveName ~= "" then
+            AddPair(map, liveName, StripColorMarkers(translatedEntry.name))
+        end
+    end
+end
+
 -- For the name fallback (talents and unresolvable spells): one english name can map to several
 -- entries — different ranks, and even same-named talents of other classes with a wholly different
 -- description. Merge them all into one lookup so the description the live tooltip actually shows is
@@ -374,7 +394,7 @@ local function TranslateTooltipInPlace(tooltip, map)
 
         if leftFontString then
             local originalText = leftFontString:GetText()
-            local translated = LookupTranslation(map, originalText)
+            local translated = IsReadable(originalText) and LookupTranslation(map, originalText)
 
             if translated then
                 leftFontString:SetText(PreserveInlineColor(originalText, translated))
@@ -385,7 +405,7 @@ local function TranslateTooltipInPlace(tooltip, map)
 
         if rightFontString then
             local originalText = rightFontString:GetText()
-            local translated = LookupTranslation(map, originalText)
+            local translated = IsReadable(originalText) and LookupTranslation(map, originalText)
 
             if translated then
                 rightFontString:SetText(PreserveInlineColor(originalText, translated))
@@ -511,6 +531,79 @@ local function AddItemSuffixTranslations(map, tooltip, englishEntry, translatedE
     end
 end
 
+-- Description lines rendered from the spell's own template (Core/SpellText.lua): spell
+-- descriptions in retail, buff and debuff descriptions on every client
+local function AddTemplateLines(map, tooltip, spellID, field)
+    if not (Matreshka_TranslateSpellText and spellID and (IS_RETAIL or field == "aura")) then
+        return
+    end
+
+    for i = 2, tooltip:NumLines() do
+        local text = GetTooltipLeftText(tooltip, i)
+
+        if text and text ~= "" and not map.exact[NormalizeForLookup(text)] then
+            local translated = Matreshka_TranslateSpellText(spellID, field, text)
+
+            if translated then
+                AddPair(map, text, translated)
+            end
+        end
+    end
+end
+
+-- Retail: an item's "Use:" / "Equip:" / "Chance on hit:" line is the trigger plus the description of
+-- the effect spell; the trigger word comes from the client strings of the interface database
+local ITEM_TRIGGERS = { "ITEM_SPELL_TRIGGER_ONUSE", "ITEM_SPELL_TRIGGER_ONEQUIP", "ITEM_SPELL_TRIGGER_ONPROC" }
+
+local function TranslateItemEffect(spells, body)
+    for id in spells:gmatch("%d+") do
+        local translated = Matreshka_TranslateSpellText(tonumber(id), "template", body)
+
+        if translated then
+            return translated
+        end
+    end
+end
+
+local function AddItemEffectLines(map, tooltip, translatedEntry)
+    local spells = translatedEntry.spells
+
+    if not (IS_RETAIL and Matreshka_TranslateSpellText and spells and spells ~= "") then
+        return
+    end
+
+    local interface = Matreshka_Interface and Matreshka_Interface[MatreshkaOptions["SELECTED_LANGUAGE"]]
+    local strings = interface and interface.strings or {}
+
+    for i = 2, tooltip:NumLines() do
+        local text = GetTooltipLeftText(tooltip, i)
+        local plain = text and NormalizeForLookup(text)
+
+        for _, name in ipairs(ITEM_TRIGGERS) do
+            local trigger = _G[name]
+
+            if plain and type(trigger) == "string" and plain:sub(1, #trigger + 1) == trigger .. " " then
+                local body = plain:sub(#trigger + 2)
+                local translated = TranslateItemEffect(spells, body)
+
+                -- The client may add the cooldown in brackets after the description
+                local tail = not translated and body:match("%s*%b()$")
+
+                if tail then
+                    translated = TranslateItemEffect(spells, body:sub(1, #body - #tail))
+                    translated = translated and (translated .. tail)
+                end
+
+                if translated then
+                    AddPair(map, text, (strings[name] or trigger) .. " " .. translated)
+                end
+
+                break
+            end
+        end
+    end
+end
+
 local function HandleItemTooltip(tooltip)
     if not IsTranslationOn("ITEM_TRANSLATIONS") then
         return
@@ -518,7 +611,7 @@ local function HandleItemTooltip(tooltip)
 
     local itemName, itemLink = tooltip:GetItem()
 
-    if not itemLink then
+    if not (IsReadable(itemLink) and IsReadable(itemName)) or not itemLink then
         return
     end
 
@@ -557,7 +650,13 @@ local function HandleItemTooltip(tooltip)
     end
 
     local map = BuildEntityMap(englishEntry, translatedEntry, ShowOnlyTitleTranslation("item"))
+    AddLiveNamePair(map, tooltip, englishEntry, translatedEntry)
     AddItemSuffixTranslations(map, tooltip, englishEntry, translatedEntry)
+
+    if not ShowOnlyTitleTranslation("item") then
+        AddItemEffectLines(map, tooltip, translatedEntry)
+    end
+
     TranslateAndRecord(tooltip, cacheKey, map)
 end
 
@@ -567,6 +666,10 @@ local function HandleSpellTooltip(tooltip)
     end
 
     local _, spellID = tooltip:GetSpell()
+
+    if not IsReadable(spellID) then
+        return
+    end
 
     if MatreshkaOptions["SHOW_IDS"] and spellID then
         tooltip.matreshkaIdText = "Spell ID: " .. spellID
@@ -583,7 +686,14 @@ local function HandleSpellTooltip(tooltip)
         end
 
         local englishEntry = Matreshka_GetEntry("spell", "en", spellID)
-        TranslateAndRecord(tooltip, cacheKey, BuildEntityMap(englishEntry, translatedEntry, ShowOnlyTitleTranslation("spell")))
+        local map = BuildEntityMap(englishEntry, translatedEntry, ShowOnlyTitleTranslation("spell"))
+        AddLiveNamePair(map, tooltip, englishEntry, translatedEntry)
+
+        if not ShowOnlyTitleTranslation("spell") then
+            AddTemplateLines(map, tooltip, spellID, "template")
+        end
+
+        TranslateAndRecord(tooltip, cacheKey, map)
         return
     end
 
@@ -617,9 +727,16 @@ local function HandleUnitTooltip(tooltip)
     end
 
     local _, unit = tooltip:GetUnit()
-    local unitGUID = (unit and UnitGUID(unit)) or UnitGUID("mouseover")
+    local unitGUID = unit and UnitGUID(unit)
 
-    if not unitGUID then
+    -- Checked before any test on the value: a secret one may not even be compared
+    if not IsReadable(unitGUID) then
+        return
+    end
+
+    unitGUID = unitGUID or UnitGUID("mouseover")
+
+    if not IsReadable(unitGUID) or not unitGUID then
         return
     end
 
@@ -647,8 +764,45 @@ local function HandleUnitTooltip(tooltip)
     end
 
     local englishEntry = Matreshka_GetEntry("npc", "en", npcID)
+    local map = BuildEntityMap(englishEntry, translatedEntry, ShowOnlyTitleTranslation("npc"))
+    AddLiveNamePair(map, tooltip, englishEntry, translatedEntry)
 
-    TranslateAndRecord(tooltip, cacheKey, BuildEntityMap(englishEntry, translatedEntry, ShowOnlyTitleTranslation("npc")))
+    TranslateAndRecord(tooltip, cacheKey, map)
+end
+
+-- Buff and debuff tooltips: name plus the aura's own description template; the spell id comes
+-- from the tooltip data (retail) or from the aura the tooltip was set to (classic)
+local function HandleAuraTooltip(tooltip, data)
+    if not IsTranslationOn("SPELL_TRANSLATIONS") then
+        return
+    end
+
+    local spellID = data and data.id
+
+    if not IsReadable(spellID) or not spellID then
+        return
+    end
+
+    if MatreshkaOptions["SHOW_IDS"] then
+        tooltip.matreshkaIdText = "Spell ID: " .. spellID
+    end
+
+    local translatedEntry = GetEffectiveEntry("spell", spellID)
+
+    if not translatedEntry then
+        RecordMissing("spell", spellID, GetTooltipLeftText(tooltip, 1))
+        return
+    end
+
+    local englishEntry = Matreshka_GetEntry("spell", "en", spellID)
+    local map = BuildEntityMap(englishEntry, translatedEntry, true)
+    AddLiveNamePair(map, tooltip, englishEntry, translatedEntry)
+
+    if not ShowOnlyTitleTranslation("spell") then
+        AddTemplateLines(map, tooltip, spellID, "aura")
+    end
+
+    TranslateAndRecord(tooltip, "aura:" .. spellID, map)
 end
 
 -- Player-specific quest tokens. The datamined source renders WoW's $N/$C/$R and gender tokens as
@@ -666,6 +820,71 @@ local QUEST_TOKEN_RACE = {
     Troll = "тролль", BloodElf = "эльф крови",
 }
 
+local CYRILLIC_UPPER = {}
+
+do
+    local lower, upper = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя", "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+    local upperChars = {}
+
+    for char in upper:gmatch("[\192-\223][\128-\191]") do
+        upperChars[#upperChars + 1] = char
+    end
+
+    local index = 0
+
+    for char in lower:gmatch("[\192-\223][\128-\191]") do
+        index = index + 1
+        CYRILLIC_UPPER[char] = upperChars[index]
+    end
+end
+
+-- Retail texts carry Blizzard's declension codes |3-N($r) / |3-N($c) and plain $r / $c. The forms
+-- come from the client's ruRU declension table (DatabaseRetail/Tokens); like the official client,
+-- the word is lowercase and gets a capital only at the start of a sentence.
+local function ApplyTokenForms(text, female)
+    local tokens = Matreshka_Tokens and Matreshka_Tokens[MatreshkaOptions["SELECTED_LANGUAGE"]]
+
+    if not tokens then
+        return text
+    end
+
+    local _, classToken = UnitClass("player")
+    local _, raceToken = UnitRace("player")
+    local entries = { r = tokens.race[raceToken], c = tokens.class[classToken] }
+
+    local function Form(token, case)
+        local entry = entries[token:lower()]
+
+        if not entry then
+            return nil
+        end
+
+        local cases = female and entry.femaleCases or entry.maleCases
+        local word = case and case ~= 6 and cases[case] or (female and entry.female or entry.male)
+
+        return "\1" .. word .. "\2"
+    end
+
+    text = text:gsub("|3%-(%d+)%((.-)%)", function(case, inner)
+        local token = inner:match("^%$([RrCc])$")
+        return token and Form(token, tonumber(case)) or inner
+    end)
+    text = text:gsub("%$([RrCc])", function(token)
+        return Form(token)
+    end)
+
+    return (text:gsub("()\1(.-)\2", function(position, word)
+        local before = text:sub(1, position - 1):gsub("[\1\2]", ""):gsub("[%s\"'%(<%*]+$", "")
+
+        if before == "" or before:sub(-1):find("[%.!%?\n]") then
+            local first, rest = word:match("^([\192-\223][\128-\191])(.*)$")
+            return first and CYRILLIC_UPPER[first] and (CYRILLIC_UPPER[first] .. rest) or word
+        end
+
+        return word
+    end))
+end
+
 local function ApplyPlayerTokens(text)
     if not text or not text:find("[<%$]") then
         return text
@@ -680,6 +899,8 @@ local function ApplyPlayerTokens(text)
     text = text:gsub("%$[Gg](.-):(.-);", function(masc, fem)
         return female and fem or masc
     end)
+
+    text = ApplyTokenForms(text, female)
 
     local name = UnitName("player") or ""
     local className, classToken = UnitClass("player")
@@ -721,13 +942,15 @@ local function HookQuestGiverText(globalFunctionName, field)
     end
 end
 
-HookQuestGiverText("GetTitleText", "title")
-HookQuestGiverText("GetQuestText", "description")
-HookQuestGiverText("GetObjectiveText", "objective")
-HookQuestGiverText("GetProgressText", "progress")
-HookQuestGiverText("GetRewardText", "completion")
+if not IS_RETAIL then
+    HookQuestGiverText("GetTitleText", "title")
+    HookQuestGiverText("GetQuestText", "description")
+    HookQuestGiverText("GetObjectiveText", "objective")
+    HookQuestGiverText("GetProgressText", "progress")
+    HookQuestGiverText("GetRewardText", "completion")
+end
 
-if GetQuestLogQuestText then
+if GetQuestLogQuestText and not IS_RETAIL then
     local originalGetQuestLogQuestText = GetQuestLogQuestText
 
     GetQuestLogQuestText = function(...)
@@ -871,6 +1094,69 @@ if QuestLog_UpdateQuestDetails then
     end)
 end
 
+-- Retail draws the quest-giver window and the map's quest log through QuestInfo_Display. The
+-- translation goes onto its text widgets after Blizzard fills them; the client API stays untouched.
+local function GetDisplayedQuestID()
+    if IS_RETAIL and QuestInfoFrame and QuestInfoFrame.questLog and C_QuestLog and C_QuestLog.GetSelectedQuest then
+        return C_QuestLog.GetSelectedQuest()
+    end
+
+    return GetQuestID and GetQuestID()
+end
+
+local function SetQuestWidgetText(widget, text)
+    if widget and text and text ~= "" then
+        widget:SetText(ApplyPlayerTokens(text))
+    end
+end
+
+if IS_RETAIL and QuestInfo_Display then
+    hooksecurefunc("QuestInfo_Display", function()
+        if not IsTranslationOn("QUEST_TRANSLATIONS") then
+            return
+        end
+
+        local questID = GetDisplayedQuestID()
+        local questData = GetDataByID("quest", questID)
+
+        if not questData then
+            return
+        end
+
+        -- The title carries quest-type icons around the name; only the name is swapped
+        local title = QuestInfoTitleHeader and QuestInfoTitleHeader:GetText()
+        local englishTitle = QuestInfoFrame.questLog and C_QuestLog.GetTitleForQuestID(questID) or GetTitleText()
+        local first, last
+
+        if title and englishTitle and englishTitle ~= "" then
+            first, last = title:find(englishTitle, 1, true)
+        end
+
+        if first and questData.title and questData.title ~= "" then
+            QuestInfoTitleHeader:SetText(title:sub(1, first - 1) .. ApplyPlayerTokens(questData.title) .. title:sub(last + 1))
+        end
+
+        SetQuestWidgetText(QuestInfoDescriptionText, questData.description)
+        SetQuestWidgetText(QuestInfoObjectivesText, questData.objective)
+        SetQuestWidgetText(QuestInfoRewardText, questData.completion)
+    end)
+end
+
+if IS_RETAIL and QuestFrameProgressPanel_OnShow then
+    hooksecurefunc("QuestFrameProgressPanel_OnShow", function()
+        if not IsTranslationOn("QUEST_TRANSLATIONS") then
+            return
+        end
+
+        local questData = GetDataByID("quest", GetQuestID())
+
+        if questData then
+            SetQuestWidgetText(QuestProgressTitleText, questData.title)
+            SetQuestWidgetText(QuestProgressText, questData.progress)
+        end
+    end)
+end
+
 -- Quest ID for bug reports: append "(ID: N)" to the quest title in the quest log detail pane and
 -- the quest-giver dialog. Independent of translation mode and of whether the quest is translated.
 if QuestInfo_Display then
@@ -879,7 +1165,7 @@ if QuestInfo_Display then
             return
         end
 
-        local questID = GetQuestID and GetQuestID()
+        local questID = GetDisplayedQuestID()
 
         if (not questID or questID == 0) and GetQuestLogSelection then
             local selectedQuestIndex = GetQuestLogSelection()
@@ -922,10 +1208,60 @@ local function OnTooltipUpdate(self)
     AppendBottomLines(self)
 end
 
+-- Retail dropped the OnTooltipSet* scripts; its data post-calls fire for every tooltip on each
+-- rebuild, so the cached map is dropped first and only named tooltips (TextLeftN lines) are handled
+local function OnTooltipData(handler)
+    return function(tooltip, data)
+        if tooltip and tooltip.GetName and tooltip:GetName() then
+            tooltip.matreshkaCacheKey = nil
+            handler(tooltip, data)
+        end
+    end
+end
+
+-- Classic clients build buff and debuff tooltips natively, without tooltip data and without a Lua
+-- Show: the aura comes from the arguments of the call that set the tooltip, and Show then runs
+-- the other Show hooks (interface strings such as "54 minutes remaining", the ID line)
+local AURA_TOOLTIP_SETTERS = {
+    SetUnitAura = "GetAuraDataByIndex",
+    SetUnitBuff = "GetBuffDataByIndex",
+    SetUnitDebuff = "GetDebuffDataByIndex",
+    SetUnitAuraByAuraInstanceID = "GetAuraDataByAuraInstanceID",
+    SetUnitBuffByAuraInstanceID = "GetAuraDataByAuraInstanceID",
+    SetUnitDebuffByAuraInstanceID = "GetAuraDataByAuraInstanceID",
+}
+
 -- Register scripts to frames
-GameTooltip:HookScript("OnTooltipSetItem", HandleItemTooltip)
-GameTooltip:HookScript("OnTooltipSetSpell", HandleSpellTooltip)
-GameTooltip:HookScript("OnTooltipSetUnit", HandleUnitTooltip)
+if IS_RETAIL then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipData(HandleItemTooltip))
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Spell, OnTooltipData(HandleSpellTooltip))
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, OnTooltipData(HandleUnitTooltip))
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.UnitAura, OnTooltipData(HandleAuraTooltip))
+else
+    GameTooltip:HookScript("OnTooltipSetItem", HandleItemTooltip)
+    GameTooltip:HookScript("OnTooltipSetSpell", HandleSpellTooltip)
+    GameTooltip:HookScript("OnTooltipSetUnit", HandleUnitTooltip)
+
+    for method, getter in pairs(AURA_TOOLTIP_SETTERS) do
+        local lookup = C_UnitAuras and C_UnitAuras[getter]
+
+        if GameTooltip[method] and lookup then
+            hooksecurefunc(GameTooltip, method, function(tooltip, unit, key, filter)
+                local aura
+
+                if getter == "GetAuraDataByAuraInstanceID" then
+                    aura = lookup(unit, key)
+                else
+                    aura = lookup(unit, key, filter)
+                end
+
+                HandleAuraTooltip(tooltip, aura and { id = aura.spellId })
+                tooltip:Show()
+            end)
+        end
+    end
+end
+
 GameTooltip:HookScript("OnTooltipCleared", ResetTooltipState)
 GameTooltip:HookScript("OnUpdate", OnTooltipUpdate)
 hooksecurefunc(GameTooltip, "Show", AppendBottomLines)
@@ -937,7 +1273,10 @@ for _, frameName in ipairs({ "ShoppingTooltip1", "ShoppingTooltip2", "ShoppingTo
     local shopping = _G[frameName]
 
     if shopping and shopping.HookScript then
-        shopping:HookScript("OnTooltipSetItem", HandleItemTooltip)
+        if not IS_RETAIL then
+            shopping:HookScript("OnTooltipSetItem", HandleItemTooltip)
+        end
+
         shopping:HookScript("OnTooltipCleared", ResetTooltipState)
         shopping:HookScript("OnUpdate", OnTooltipUpdate)
         hooksecurefunc(shopping, "Show", AppendBottomLines)
@@ -1047,6 +1386,35 @@ local function NormalizeGossip(text)
     return normalized
 end
 
+-- Retail keys keep $R / $C where the client put the player's race and class; a missed line is
+-- tried once more with those English words folded back into the marks
+local function CaseInsensitive(word)
+    return (word:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"):gsub("%a", function(char)
+        return "[" .. char:upper() .. char:lower() .. "]"
+    end))
+end
+
+local function FoldRaceClass(key)
+    local folded = key
+    local raceName = UnitRace and UnitRace("player")
+    local className = UnitClass and UnitClass("player")
+
+    if raceName and raceName ~= "" then
+        folded = folded:gsub("%f[%a]" .. CaseInsensitive(raceName) .. "%f[%A]", "$R")
+    end
+
+    if className and className ~= "" then
+        folded = folded:gsub("%f[%a]" .. CaseInsensitive(className) .. "%f[%A]", "$C")
+    end
+
+    return folded ~= key and folded or nil
+end
+
+local function LookupFolded(bucket, key)
+    local folded = IS_RETAIL and bucket and FoldRaceClass(key)
+    return folded and bucket[folded] or nil
+end
+
 local function LookupGossip(liveText)
     local languageCode = MatreshkaOptions and MatreshkaOptions["SELECTED_LANGUAGE"]
     local bucket = Matreshka_Gossip and languageCode and Matreshka_Gossip[languageCode]
@@ -1064,7 +1432,7 @@ local function LookupGossip(liveText)
     -- Many gossip texts are broadcast texts too, so the official chat map covers what the gossip map lacks.
     local chatBucket = Matreshka_Chat and Matreshka_Chat[languageCode]
 
-    return bucket[key] or (chatBucket and chatBucket[key]), key
+    return bucket[key] or (chatBucket and chatBucket[key]) or LookupFolded(chatBucket, key), key
 end
 
 local function RecordMissingGossip(key)
@@ -1196,7 +1564,7 @@ local function LookupChat(liveText)
         return nil, nil
     end
 
-    return bucket[key], key
+    return bucket[key] or LookupFolded(bucket, key), key
 end
 
 local function RecordMissingChat(key)
@@ -1240,7 +1608,7 @@ end
 -- Applied at login when chat translation is on; toggling the option takes effect after /reload, like
 -- the language switch. Options are restored from SavedVariables only by PLAYER_LOGIN, hence the event.
 local function ApplyChatVerbs()
-    if not IsTranslationOn("NPC_CHAT_TRANSLATIONS") then
+    if IS_RETAIL or not IsTranslationOn("NPC_CHAT_TRANSLATIONS") then
         return
     end
 
@@ -1257,7 +1625,7 @@ chatVerbFrame:SetScript("OnEvent", ApplyChatVerbs)
 -- Friend online/offline notices are built from client global strings, like the chat verbs above.
 -- Swap them for Blizzard's official Russian wording so those system lines read in Russian too.
 local function ApplySystemStrings()
-    if not (MatreshkaOptions and MatreshkaOptions["TRANSLATIONS_ENABLED"] ~= false
+    if IS_RETAIL or not (MatreshkaOptions and MatreshkaOptions["TRANSLATIONS_ENABLED"] ~= false
         and MatreshkaOptions["SELECTED_LANGUAGE"] == "ru") then
         return
     end
@@ -1387,6 +1755,14 @@ local function GetTranslatedItemName(englishName)
         return nil
     end
 
+    -- Retail ships no English item names; the client finds the id of a known item by its name
+    if IS_RETAIL then
+        local itemID = C_Item and C_Item.GetItemInfoInstant and C_Item.GetItemInfoInstant(englishName)
+        local entry = itemID and GetEffectiveEntry("item", itemID)
+
+        return entry and entry.name and NormalizeForLookup(entry.name) or nil
+    end
+
     local languageCode = MatreshkaOptions["SELECTED_LANGUAGE"]
 
     if itemTitleIndex == nil or itemTitleIndexLanguage ~= languageCode then
@@ -1418,8 +1794,10 @@ local function TranslateItemText(self, event)
     if event == "ITEM_TEXT_BEGIN" then
         local title = GetTranslatedItemName(ItemTextGetItem())
 
-        if title then
+        if title and ItemTextTitleText then
             ItemTextTitleText:SetText(title)
+        elseif title and ItemTextFrame.SetTitle then
+            ItemTextFrame:SetTitle(title)
         end
 
         return
@@ -1464,7 +1842,11 @@ local function TranslateItemText(self, event)
         scrollChild:SetHeight(ItemTextScrollFrame:GetHeight() + ItemTextScrollFrame:GetVerticalScrollRange() + 30)
     end
 
-    ItemTextScrollFrameScrollBar:SetValue(0)
+    if ItemTextScrollFrameScrollBar then
+        ItemTextScrollFrameScrollBar:SetValue(0)
+    elseif ItemTextScrollFrame.ScrollBar and ItemTextScrollFrame.ScrollBar.ScrollToBegin then
+        ItemTextScrollFrame.ScrollBar:ScrollToBegin()
+    end
 end
 
 local function InstallItemTextHook()
@@ -1841,6 +2223,101 @@ local function FormatToPattern(englishFormat)
     return "^" .. table.concat(parts) .. "$"
 end
 
+-- Retail formats also carry %c (the sign before a stat) and plural codes |4Day:Days;. A plural code
+-- gives one English text per form; each is turned into a pattern with the conversion letters in
+-- order, the literal tail after the last conversion and the amount of literal text (specificity).
+local CONVERSION = "%%[%d%.%-%+# ]*[sdfiguxXc%%]"
+
+local function ExpandPluralForms(english)
+    local first, last, forms = english:find("|4([^;]*);")
+
+    if not first then
+        return { english }
+    end
+
+    local texts = {}
+
+    for form in forms:gmatch("[^:]+") do
+        for _, rest in ipairs(ExpandPluralForms(english:sub(last + 1))) do
+            texts[#texts + 1] = english:sub(1, first - 1) .. form .. rest
+        end
+    end
+
+    return texts
+end
+
+local function RetailFormatToPattern(english)
+    local parts, kinds, position, literal = { "^" }, {}, 1, 0
+
+    while true do
+        local first, last = english:find(CONVERSION, position)
+
+        if not first then
+            break
+        end
+
+        parts[#parts + 1] = escapeMagic(english:sub(position, first - 1))
+        literal = literal + (first - position)
+        local kind = english:sub(last, last)
+
+        if kind == "%" then
+            parts[#parts + 1] = "%%"
+        else
+            parts[#parts + 1] = kind == "c" and "(.)" or "(.-)"
+            kinds[#kinds + 1] = kind
+        end
+
+        position = last + 1
+    end
+
+    parts[#parts + 1] = escapeMagic(english:sub(position))
+    literal = literal + (#english - position + 1)
+    parts[#parts + 1] = "$"
+
+    return table.concat(parts), kinds, english:sub(position), literal
+end
+
+-- Russian plural codes |4одна:две:пять; after formatting, by the number in front of them
+local function ResolvePlurals(text)
+    if not Matreshka_PluralForm then
+        return text
+    end
+
+    return (text:gsub("(%d[%d%.,]*)(%s*)|4([^;]*);", function(number, space, forms)
+        local list = {}
+
+        for form in forms:gmatch("[^:]+") do
+            list[#list + 1] = form
+        end
+
+        return number .. space .. (Matreshka_PluralForm(number, list) or "")
+    end))
+end
+
+-- One pattern per plural form of a client format
+local function AddFormatForms(english, translated)
+    for _, form in ipairs(ExpandPluralForms(english)) do
+        local pattern, kinds, tail, literal = RetailFormatToPattern(form)
+
+        if #kinds == 0 then
+            local resolved = ResolvePlurals(translated)
+
+            if not resolved:find("|4", 1, true) then
+                interfaceExact[form] = resolved
+            end
+        else
+            interfaceFormats[#interfaceFormats + 1] = {
+                prefix = form:match("^[^%%]*"),
+                suffix = tail ~= "" and tail or nil,
+                pattern = pattern,
+                kinds = kinds,
+                literal = literal,
+                translated = translated,
+            }
+        end
+    end
+end
+
 local function BuildInterfaceLookup()
     interfaceExact, interfaceFormats = {}, {}
 
@@ -1854,15 +2331,37 @@ local function BuildInterfaceLookup()
         local english = _G[name]
 
         if type(english) == "string" and english ~= "" and english ~= translated then
-            if english:gsub("%%%%", ""):find("%%[%d%.%-%+# ]*[sdfiguxXc]") then
+            if IS_RETAIL and (english:gsub("%%%%", ""):find("%%[%d%.%-%+# ]*[sdfiguxXc]") or english:find("|4", 1, true)) then
+                AddFormatForms(english, translated)
+            elseif english:gsub("%%%%", ""):find("%%[%d%.%-%+# ]*[sdfiguxXc]") then
                 interfaceFormats[#interfaceFormats + 1] = {
                     prefix = english:match("^[^%%]*"),
                     pattern = FormatToPattern(english),
                     translated = translated,
                 }
+
+                -- Font strings keep the plural code unresolved, tooltip lines built by the client
+                -- (buff time left) come with it resolved: both are matched
+                if english:find("|4", 1, true) then
+                    AddFormatForms(english, translated)
+                end
             else
                 interfaceExact[english] = translated
             end
+        end
+    end
+
+    -- Retail: the most specific format is tried first, so a short one cannot take a longer line
+    if IS_RETAIL then
+        table.sort(interfaceFormats, function(a, b)
+            return (a.literal or 0) > (b.literal or 0)
+        end)
+    end
+
+    -- Retail item types (Sword, Plate, ...) are not client globals, so they ship as plain pairs
+    for english, translated in pairs(data.exact or {}) do
+        if interfaceExact[english] == nil then
+            interfaceExact[english] = translated
         end
     end
 end
@@ -1891,19 +2390,33 @@ local function TranslateInterfaceText(text)
         return interfaceExact[base] .. keySuffix
     end
 
+    -- A whole label in one color ("|cff808080Not Bound|r" on an empty key binding)
+    local colorOpen, colored = text:match("^(|c%x%x%x%x%x%x%x%x)(.-)|r$")
+
+    if colored and interfaceExact[colored] then
+        return colorOpen .. interfaceExact[colored] .. "|r"
+    end
+
     for _, entry in ipairs(interfaceFormats) do
-        if text:sub(1, #entry.prefix) == entry.prefix then
+        if text:sub(1, #entry.prefix) == entry.prefix
+            and (not entry.suffix or text:sub(-#entry.suffix) == entry.suffix) then
             local values = { text:match(entry.pattern) }
 
             if values[1] then
                 for i, value in ipairs(values) do
                     values[i] = interfaceExact[value] or value
+
+                    -- %c takes the character code (the sign of a stat line)
+                    if entry.kinds and entry.kinds[i] == "c" then
+                        values[i] = value:byte()
+                    end
                 end
 
                 local ok, result = pcall(format, entry.translated, unpack(values))
 
+                -- Russian plural codes are resolved here: the client would pick by English rules
                 if ok then
-                    return result
+                    return ResolvePlurals(result)
                 end
             end
         end
@@ -1924,10 +2437,21 @@ local function TranslateInterfaceTooltip(tooltip)
 
     for i = 1, tooltip:NumLines() do
         local line = _G[tooltipName .. "TextLeft" .. i]
-        local translated = line and TranslateInterfaceText(line:GetText())
+        local text = line and line:GetText()
+        local translated = IsReadable(text) and TranslateInterfaceText(text)
 
         if translated then
             line:SetText(translated)
+            changed = true
+        end
+
+        -- Retail item tooltips put the type (Sword, Plate) and the speed in the right column
+        local right = IS_RETAIL and _G[tooltipName .. "TextRight" .. i]
+        local rightText = right and right:GetText()
+        local rightTranslated = right and IsReadable(rightText) and TranslateInterfaceText(rightText)
+
+        if rightTranslated then
+            right:SetText(rightTranslated)
             changed = true
         end
     end
@@ -2134,7 +2658,671 @@ local function TranslateMenu(_, rootDescription)
     end
 end
 
+-- Retail reputation: the list is a ScrollBox of faction data rebuilt on every Update. Names go into
+-- that data by faction ID and the provider is set again, so the rows are laid out in Russian.
+local function TranslateStandingText(bar)
+    local text = bar.BarText and bar.BarText:GetText()
+    local translated = IsTranslationOn("INTERFACE_TRANSLATIONS") and IsReadable(text) and TranslateInterfaceText(text)
+
+    if translated then
+        bar.BarText:SetText(translated)
+    end
+end
+
+local function TranslateRetailReputationRow(row)
+    local bar = row.Content and row.Content.ReputationBar
+
+    if bar and bar.TryShowReputationStandingText then
+        if not bar.matreshkaHooked then
+            bar.matreshkaHooked = true
+            hooksecurefunc(bar, "TryShowReputationStandingText", TranslateStandingText)
+        end
+
+        TranslateStandingText(bar)
+    end
+end
+
+local function TranslateRetailReputation(frame)
+    local data = GetInterfaceData()
+    local scrollBox = frame.ScrollBox
+    local provider = scrollBox and scrollBox:GetDataProvider()
+
+    if frame.matreshkaTranslating or not (data and IsTranslationOn("INTERFACE_TRANSLATIONS") and provider and provider.ForEach) then
+        return
+    end
+
+    local changed = false
+
+    provider:ForEach(function(element)
+        local faction = element.factionID and data.factions[element.factionID]
+
+        if faction and faction[1] and element.name ~= faction[1] then
+            element.name = faction[1]
+            changed = true
+        end
+    end)
+
+    if changed then
+        frame.matreshkaTranslating = true
+        scrollBox:SetDataProvider(provider, ScrollBoxConstants.RetainScrollPosition)
+        frame.matreshkaTranslating = false
+    end
+
+    if scrollBox.ForEachFrame then
+        scrollBox:ForEachFrame(TranslateRetailReputationRow)
+    end
+end
+
+local function TranslateRetailReputationDetail(detail)
+    local data = GetInterfaceData()
+
+    if not (data and IsTranslationOn("INTERFACE_TRANSLATIONS")) then
+        return
+    end
+
+    local factionData = C_Reputation.GetFactionDataByIndex(C_Reputation.GetSelectedFaction())
+    local faction = factionData and data.factions[factionData.factionID]
+
+    if faction then
+        ReplaceText(detail.Title, faction[1], "INTERFACE_TRANSLATIONS")
+
+        if faction[2] ~= "" and detail.ScrollingDescription then
+            detail.ScrollingDescription:SetText(faction[2])
+        end
+    end
+
+    TranslateStaticTexts(detail)
+end
+
+-- Retail spellbook (Blizzard_PlayerSpells): each entry draws its name in UpdateVisuals
+local function TranslateSpellBookItem(item)
+    local info = item.spellBookItemInfo
+    local spellID = info and (info.spellID or info.actionID)
+    local entry = IsTranslationOn("SPELL_TRANSLATIONS") and spellID and GetEffectiveEntry("spell", spellID)
+
+    if entry and entry.name and entry.name ~= "" and item.Name then
+        item.Name:SetText((entry.name:gsub("%[q%d?%]", "")))
+    end
+
+    local subName = item.SubName and item.SubName:GetText()
+    local translated = IsTranslationOn("INTERFACE_TRANSLATIONS") and IsReadable(subName) and TranslateInterfaceText(subName)
+
+    if translated then
+        item.SubName:SetText(translated)
+    end
+end
+
+-- One label or button: a pair from the window's own table first (skills, rank texts), then the
+-- client strings
+local function TranslateWidget(widget, windowPairs)
+    local text = widget and widget:GetText()
+    local translated = text and (windowPairs and windowPairs[text] or TranslateInterfaceText(text))
+
+    if translated then
+        ReplaceText(widget, translated, "INTERFACE_TRANSLATIONS")
+    end
+end
+
+local function GetWindowPairs(name)
+    local data = GetInterfaceData()
+    return data and data[name]
+end
+
+-- Gossip window: the Goodbye button under the dialogue
+local function TranslateGossipButtons()
+    local panel = GossipFrame and GossipFrame.GreetingPanel
+
+    if panel and IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        TranslateWidget(panel.GoodbyeButton)
+    end
+end
+
+-- Skill window (Skills tab of the character frame): skill lines, category headers and the selected
+-- skill's description come from the client's skill tables
+local function TranslateSkillFrame()
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    local skills = GetWindowPairs("skills")
+
+    for i = 1, SKILLS_TO_DISPLAY or 12 do
+        TranslateWidget(_G["SkillTypeLabel" .. i], skills)
+        TranslateWidget(_G["SkillRankFrame" .. i .. "SkillName"], skills)
+    end
+
+    TranslateWidget(SkillDetailStatusBarSkillName, skills)
+    TranslateWidget(SkillFrameCollapseAllButton)
+    TranslateWidget(SkillFrameCancelButton)
+
+    -- The detail line is the client format SKILL_DESCRIPTION around the skill's own description
+    local selected = GetSelectedSkill and GetSelectedSkill()
+    local description = selected and selected > 0 and select(13, GetSkillLineInfo(selected))
+    local translated = description and skills and skills[description]
+
+    if translated and SkillDetailDescriptionText then
+        ReplaceText(SkillDetailDescriptionText, format(SKILL_DESCRIPTION, "", translated), "INTERFACE_TRANSLATIONS")
+    end
+end
+
+-- Spellbook (Vanilla and TBC layout): title, page number, the ranks checkbox and the rank line under
+-- each spell. The client sets the rank once the spell data has loaded, so the open book is also
+-- checked on a timer.
+local function TranslateSpellbookTexts()
+    if not (IsTranslationOn("INTERFACE_TRANSLATIONS") and SpellBookFrame:IsShown()) then
+        return
+    end
+
+    local subtexts = GetWindowPairs("subtexts")
+
+    TranslateWidget(SpellBookTitleText)
+    TranslateWidget(SpellBookPageText)
+    TranslateWidget(ShowAllSpellRanksCheckboxText)
+
+    for i = 1, SPELLS_PER_PAGE or 12 do
+        local button = _G["SpellButton" .. i]
+        TranslateWidget(button and (button.SpellSubName or _G["SpellButton" .. i .. "SubSpellName"]), subtexts)
+    end
+end
+
+-- Macro window (Blizzard_MacroUI, on demand): title, labels, buttons, tabs and the character counter.
+-- Macro names and bodies are the player's own text and are left alone.
+local MACRO_WIDGETS = { "MacroFrameEnterMacroText", "MacroEditButton", "MacroCancelButton", "MacroSaveButton",
+    "MacroDeleteButton", "MacroNewButton", "MacroExitButton", "MacroFrameCharLimitText" }
+
+-- Space kept between the second tab and the frame's right edge: its right cap reaches past the tab
+local MACRO_TAB_EDGE = 12
+
+-- As the tab template resizes itself on show; the Russian titles are wider, so the second tab is
+-- then narrowed to the room left in the frame and its title truncated
+local function ResizeMacroTabs()
+    if not PanelTemplates_TabResize then
+        return
+    end
+
+    for i = 1, 2 do
+        PanelTemplates_TabResize(_G["MacroFrameTab" .. i], MacroFrame.tabPadding, nil, MacroFrame.minTabWidth, MacroFrame.maxTabWidth)
+    end
+
+    local frameRight, firstLeft = MacroFrame:GetRight(), MacroFrameTab1:GetLeft()
+    local room = frameRight and firstLeft and frameRight - firstLeft - MacroFrameTab1:GetWidth() - MACRO_TAB_EDGE
+
+    if room and MacroFrameTab2:GetWidth() > room then
+        PanelTemplates_TabResize(MacroFrameTab2, nil, room)
+    end
+end
+
+local function TranslateMacroCounter()
+    if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        TranslateWidget(MacroFrameCharLimitText)
+    end
+end
+
+local function TranslateMacroFrame()
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    -- The title is an unnamed font string of the frame, next to the selected macro's name
+    for _, region in ipairs({ MacroFrame:GetRegions() }) do
+        if region:GetObjectType() == "FontString" and region:GetText() == CREATE_MACROS then
+            TranslateWidget(region)
+        end
+    end
+
+    for _, name in ipairs(MACRO_WIDGETS) do
+        TranslateWidget(_G[name])
+    end
+
+    for i = 1, 2 do
+        local tab = _G["MacroFrameTab" .. i]
+        local translated = tab and TranslateInterfaceText(tab:GetText())
+
+        if translated then
+            ReplaceText(tab, translated, "INTERFACE_TRANSLATIONS", ResizeMacroTabs)
+        end
+    end
+
+    ResizeMacroTabs()
+end
+
+-- The tab template resizes itself on every show, after the window's own OnShow
+local function RefitMacroTabs()
+    if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        ResizeMacroTabs()
+    end
+end
+
+-- Tooltips the client sets without a Lua Show (the truncated macro tab, the repair button)
+local function TranslateOwnedTooltip()
+    TranslateInterfaceTooltip(GameTooltip)
+end
+
+-- Merchant window: page buttons and number, repair label, tabs and the buyback title. Item names
+-- and the merchant's own name are left alone.
+local function TranslateMerchantFrame()
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    TranslateWidget(MerchantPageText)
+    TranslateWidget(MerchantRepairText)
+
+    for _, button in ipairs({ MerchantPrevPageButton, MerchantNextPageButton }) do
+        for _, region in ipairs({ button:GetRegions() }) do
+            if region:GetObjectType() == "FontString" then
+                TranslateWidget(region)
+            end
+        end
+    end
+
+    if MerchantNameText:GetText() == MERCHANT_BUYBACK then
+        TranslateWidget(MerchantNameText)
+    end
+
+    TranslateTemplateTabs("MerchantFrameTab", 2, MerchantFrame)
+end
+
+-- Chat channel window (Blizzard_Channels, on demand). Channel and category names come from the
+-- window's own table: here "Trade" is the trade channel and "Custom" a channel category.
+local function TranslateChannelName(name)
+    local channels = GetWindowPairs("channels")
+
+    if not (channels and name and name ~= "") then
+        return nil
+    end
+
+    local base, zone = name:match("^(.-) %- (.+)$")
+
+    return channels[name] or (base and channels[base] and channels[base] .. ": " .. zone) or TranslateInterfaceText(name)
+end
+
+-- "5. General " in the list: only the name part changes, number, member count and color stay
+local function TranslateChannelList(list)
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    for _, button in ipairs(list.buttons or {}) do
+        local name = button.GetChannelName and button:GetChannelName()
+        local text = button.Text and button.Text:GetText()
+        local translated = text and TranslateChannelName(name)
+        local first, last
+
+        if translated then
+            first, last = text:find(name, 1, true)
+        end
+
+        if first then
+            ReplaceText(button.Text, text:sub(1, first - 1) .. translated .. text:sub(last + 1), "INTERFACE_TRANSLATIONS")
+        end
+    end
+end
+
+local function TranslateChannelRoster(roster)
+    local text = IsTranslationOn("INTERFACE_TRANSLATIONS") and roster.ChannelName and roster.ChannelName:GetText()
+    local translated = text and TranslateChannelName(text)
+
+    if translated then
+        ReplaceText(roster.ChannelName, translated, "INTERFACE_TRANSLATIONS")
+    end
+end
+
+local function TranslateChannelFrame()
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    TranslateWidget(ChannelFrame.TitleText)
+    TranslateWidget(ChannelFrame.NewButton)
+    TranslateWidget(ChannelFrame.SettingsButton)
+    TranslateChannelList(ChannelFrame.ChannelList)
+    TranslateChannelRoster(ChannelFrame.ChannelRoster)
+end
+
+-- Timers under the player's buff and debuff icons ("54 m"): the client's one-letter abbreviation is
+-- rebuilt with the Russian one after each timer update
+local durationFormats
+
+local function GetDurationFormats()
+    if not durationFormats then
+        durationFormats = {}
+
+        for name, translated in pairs(GetWindowPairs("durations") or {}) do
+            local prefix, suffix
+
+            if type(_G[name]) == "string" then
+                prefix, suffix = _G[name]:match("^(.-)%%d(.*)$")
+            end
+
+            if prefix then
+                durationFormats[#durationFormats + 1] = { "^" .. escapeMagic(prefix) .. "(%d+)" .. escapeMagic(suffix) .. "$", translated }
+            end
+        end
+    end
+
+    return durationFormats
+end
+
+local function TranslateAuraDuration(button)
+    local text = IsTranslationOn("INTERFACE_TRANSLATIONS") and button.Duration and button.Duration:GetText()
+
+    if not text or text == "" then
+        return
+    end
+
+    for _, entry in ipairs(GetDurationFormats()) do
+        local number = text:match(entry[1])
+
+        if number then
+            button.Duration:SetText(format(entry[2], tonumber(number)))
+            return
+        end
+    end
+end
+
+-- Options window (Blizzard_Settings): the category list and the settings list are ScrollBoxes, each
+-- row is translated after its own initializer. Blizzard runs these callbacks through
+-- secureexecuterange, so the panel's code stays untainted. Dropdowns get the element initializer of
+-- the dropdown menus above when their menu is built, and their shown choice after each update.
+local settingsOwner = {}
+local hookedDropdowns = setmetatable({}, { __mode = "k" })
+
+local function TranslateDropdownMenu(_, description)
+    if description and IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        AddMenuTranslation(description)
+    end
+end
+
+local function TranslateDropdownText(dropdown)
+    if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        TranslateStaticTexts(dropdown)
+    end
+end
+
+local function HookDropdowns(frame)
+    if frame:IsForbidden() then
+        return
+    end
+
+    if frame.RegisterMenu and frame.UpdateToMenuSelections and not hookedDropdowns[frame] then
+        hookedDropdowns[frame] = true
+        hooksecurefunc(frame, "RegisterMenu", TranslateDropdownMenu)
+        hooksecurefunc(frame, "UpdateToMenuSelections", TranslateDropdownText)
+    end
+
+    for _, child in ipairs({ frame:GetChildren() }) do
+        HookDropdowns(child)
+    end
+end
+
+local function TranslateSettingsRow(_, frame)
+    if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        TranslateStaticTexts(frame)
+    end
+
+    HookDropdowns(frame)
+end
+
+-- The Game and AddOns tabs take their width from the text once, when loaded
+local function ResizeSettingsTab(tab)
+    tab:SetWidth(tab.Text:GetStringWidth() + 40)
+end
+
+local function TranslateSettingsPanel()
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    for _, tab in ipairs({ SettingsPanel.GameTab, SettingsPanel.AddOnsTab }) do
+        local translated = tab and tab.Text and TranslateInterfaceText(tab.Text:GetText())
+
+        if translated then
+            ReplaceText(tab.Text, translated, "INTERFACE_TRANSLATIONS", function() ResizeSettingsTab(tab) end)
+            ResizeSettingsTab(tab)
+        end
+    end
+
+    TranslateStaticTexts(SettingsPanel)
+end
+
+local function TranslateSettingsHeader()
+    if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        TranslateStaticTexts(SettingsPanel.Container.SettingsList.Header)
+    end
+end
+
+-- Auction house (Blizzard_AuctionUI, on demand): the three Blizzard panels and their tabs. Tabs and
+-- frames other addons add to the window are left alone, so are item and player names in the lists.
+local AUCTION_ROWS = { BrowseButton = "NUM_BROWSE_TO_DISPLAY", BidButton = "NUM_BIDS_TO_DISPLAY",
+    AuctionsButton = "NUM_AUCTIONS_TO_DISPLAY" }
+
+local auctionOwnNames = {}
+
+local function TranslateAuctionTexts(frame, categories)
+    if frame:IsForbidden() then
+        return
+    end
+
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if region:GetObjectType() == "FontString" and not auctionOwnNames[region] then
+            TranslateWidget(region, categories)
+        end
+    end
+
+    for _, child in ipairs({ frame:GetChildren() }) do
+        TranslateAuctionTexts(child, categories)
+    end
+end
+
+local function TranslateAuctionPanel(panel)
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    TranslateAuctionTexts(panel, GetWindowPairs("auctionCategories"))
+
+    -- Put together by the client from two strings
+    local optional = BUYOUT_PRICE and OPTIONAL and BUYOUT_PRICE .. " |cff808080(" .. OPTIONAL .. ")|r"
+    local price, note = TranslateInterfaceText(BUYOUT_PRICE), TranslateInterfaceText(OPTIONAL)
+
+    if AuctionsBuyoutText and optional and AuctionsBuyoutText:GetText() == optional and price and note then
+        ReplaceText(AuctionsBuyoutText, price .. " |cff808080(" .. note .. ")|r", "INTERFACE_TRANSLATIONS")
+    end
+end
+
+local function TranslateAuctionFrame()
+    if not IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        return
+    end
+
+    TranslateTemplateTabs("AuctionFrameTab", 3, AuctionFrame)
+
+    for _, panel in ipairs({ AuctionFrameBrowse, AuctionFrameBid, AuctionFrameAuctions }) do
+        TranslateAuctionPanel(panel)
+    end
+end
+
+-- The search button rewrites "Searching for items" every frame while a search runs
+local function TranslateAuctionSearching()
+    if BrowseNoResultsText:GetText() == SEARCHING_FOR_ITEMS and IsTranslationOn("INTERFACE_TRANSLATIONS") then
+        TranslateWidget(BrowseNoResultsText)
+    end
+end
+
 local interfaceHooked = {}
+
+-- Classic windows; several of them load on demand, so each is hooked once it exists
+local function InstallClassicWindowHooks()
+    if not interfaceHooked.gossip and GossipFrame and GossipFrame.HookScript then
+        interfaceHooked.gossip = true
+        GossipFrame:HookScript("OnShow", TranslateGossipButtons)
+    end
+
+    if not interfaceHooked.skills and SkillFrame and type(SkillFrame_UpdateSkills) == "function" then
+        interfaceHooked.skills = true
+        hooksecurefunc("SkillFrame_UpdateSkills", TranslateSkillFrame)
+    end
+
+    if not interfaceHooked.spellbookTexts and SpellBookFrame and SpellBookFrame.HookScript and SpellButton1 then
+        interfaceHooked.spellbookTexts = true
+
+        for i = 1, SPELLS_PER_PAGE or 12 do
+            local button = _G["SpellButton" .. i]
+
+            if button and type(button.UpdateButton) == "function" then
+                hooksecurefunc(button, "UpdateButton", TranslateSpellbookTexts)
+            end
+        end
+
+        if type(SpellBookFrame.UpdatePages) == "function" then
+            hooksecurefunc(SpellBookFrame, "UpdatePages", TranslateSpellbookTexts)
+        end
+
+        local sinceRefresh = 0
+        SpellBookFrame:HookScript("OnShow", TranslateSpellbookTexts)
+        SpellBookFrame:HookScript("OnUpdate", function(_, elapsed)
+            sinceRefresh = sinceRefresh + (elapsed or 0)
+
+            if sinceRefresh >= 0.1 then
+                sinceRefresh = 0
+                TranslateSpellbookTexts()
+            end
+        end)
+    end
+
+    if not interfaceHooked.macros and MacroFrame and MacroFrameText then
+        interfaceHooked.macros = true
+        MacroFrame:HookScript("OnShow", TranslateMacroFrame)
+        MacroFrameText:HookScript("OnTextChanged", TranslateMacroCounter)
+        MacroFrameTab2:HookScript("OnShow", RefitMacroTabs)
+        MacroFrameTab2:HookScript("OnEnter", TranslateOwnedTooltip)
+
+        if MacroFrame:IsShown() then
+            TranslateMacroFrame()
+        end
+    end
+
+    if not interfaceHooked.merchant and MerchantFrame and type(MerchantFrame_Update) == "function" then
+        interfaceHooked.merchant = true
+        hooksecurefunc("MerchantFrame_Update", TranslateMerchantFrame)
+
+        if MerchantRepairItemButton then
+            MerchantRepairItemButton:HookScript("OnEnter", TranslateOwnedTooltip)
+        end
+    end
+
+    if not interfaceHooked.auction and AuctionFrame and AuctionFrameBrowse and AuctionFrameBid and AuctionFrameAuctions
+        and type(AuctionFrameBrowse_Update) == "function" then
+        interfaceHooked.auction = true
+
+        -- Item and player names in the lists; time left in the lists shows its tooltip without a Lua Show
+        for prefix, countName in pairs(AUCTION_ROWS) do
+            for i = 1, _G[countName] or 0 do
+                for _, suffix in ipairs({ "Name", "HighBidderName" }) do
+                    local region = _G[prefix .. i .. suffix]
+
+                    if region then
+                        auctionOwnNames[region] = true
+                    end
+                end
+
+                local closingTime = _G[prefix .. i .. "ClosingTime"]
+
+                if closingTime then
+                    closingTime:HookScript("OnEnter", TranslateOwnedTooltip)
+                end
+            end
+        end
+
+        if AuctionsItemButtonName then
+            auctionOwnNames[AuctionsItemButtonName] = true
+        end
+
+        for _, name in ipairs({ "ShowOnPlayerCheckButton", "AuctionsItemButton" }) do
+            if _G[name] then
+                _G[name]:HookScript("OnEnter", TranslateOwnedTooltip)
+            end
+        end
+
+        AuctionFrame:HookScript("OnShow", TranslateAuctionFrame)
+
+        for _, panel in ipairs({ AuctionFrameBrowse, AuctionFrameBid, AuctionFrameAuctions }) do
+            panel:HookScript("OnShow", TranslateAuctionPanel)
+        end
+
+        local updates = {
+            { AuctionFrameBrowse, "AuctionFrameBrowse_Update" },
+            { AuctionFrameBrowse, "AuctionFrameFilters_Update" },
+            { AuctionFrameBid, "AuctionFrameBid_Update" },
+            { AuctionFrameAuctions, "AuctionFrameAuctions_Update" },
+        }
+
+        for _, entry in ipairs(updates) do
+            local panel, update = entry[1], entry[2]
+
+            if type(_G[update]) == "function" then
+                hooksecurefunc(update, function() TranslateAuctionPanel(panel) end)
+            end
+        end
+
+        if BrowseSearchButton and BrowseNoResultsText then
+            BrowseSearchButton:HookScript("OnUpdate", TranslateAuctionSearching)
+        end
+
+        HookDropdowns(AuctionFrameBrowse)
+
+        if AuctionFrame:IsShown() then
+            TranslateAuctionFrame()
+        end
+    end
+
+    if not interfaceHooked.channels and ChannelFrame and ChannelFrame.ChannelList and ChannelFrame.ChannelRoster then
+        interfaceHooked.channels = true
+        ChannelFrame:HookScript("OnShow", TranslateChannelFrame)
+        hooksecurefunc(ChannelFrame.ChannelList, "Update", TranslateChannelList)
+        hooksecurefunc(ChannelFrame.ChannelList, "SetSelectedChannel", TranslateChannelList)
+        hooksecurefunc(ChannelFrame.ChannelRoster, "UpdateFromOpaqueChannel", TranslateChannelRoster)
+
+        if ChannelFrame:IsShown() then
+            TranslateChannelFrame()
+        end
+    end
+
+    if not interfaceHooked.auraTimers and BuffFrame and BuffFrame.auraFrames then
+        interfaceHooked.auraTimers = true
+        local buttons = {}
+
+        for _, container in ipairs({ BuffFrame, DebuffFrame }) do
+            for _, button in ipairs(container.auraFrames or {}) do
+                buttons[#buttons + 1] = button
+            end
+        end
+
+        if DeadlyDebuffFrame and DeadlyDebuffFrame.Debuff then
+            buttons[#buttons + 1] = DeadlyDebuffFrame.Debuff
+        end
+
+        for _, button in ipairs(buttons) do
+            if type(button.UpdateDuration) == "function" then
+                hooksecurefunc(button, "UpdateDuration", TranslateAuraDuration)
+            end
+        end
+    end
+
+    if not interfaceHooked.settings and SettingsPanel and SettingsPanel.Container and ScrollUtil
+        and ScrollUtil.AddInitializedFrameCallback then
+        interfaceHooked.settings = true
+        ScrollUtil.AddInitializedFrameCallback(SettingsPanel.Container.SettingsList.ScrollBox, TranslateSettingsRow, settingsOwner)
+        ScrollUtil.AddInitializedFrameCallback(SettingsPanel.CategoryList.ScrollBox, TranslateSettingsRow, settingsOwner)
+        SettingsPanel:HookScript("OnShow", TranslateSettingsPanel)
+        hooksecurefunc(SettingsPanel, "DisplayCategory", TranslateSettingsHeader)
+
+        if SettingsTooltip then
+            hooksecurefunc(SettingsTooltip, "Show", TranslateInterfaceTooltip)
+        end
+    end
+end
 
 local function InstallInterfaceHooks()
     if not interfaceHooked.menus and Menu and Menu.ModifyMenu then
@@ -2174,6 +3362,41 @@ local function InstallInterfaceHooks()
             hooksecurefunc("GuildStatus_Update", TranslateSocialWindow)
         end
     end
+
+    if not IS_RETAIL then
+        InstallClassicWindowHooks()
+        return
+    end
+
+    if not interfaceHooked.retailReputation and ReputationFrame and ReputationFrame.Update and ReputationFrame.ScrollBox then
+        interfaceHooked.retailReputation = true
+        hooksecurefunc(ReputationFrame, "Update", TranslateRetailReputation)
+        ReputationFrame:HookScript("OnShow", TranslateReputationTexts)
+
+        if ReputationFrame.ReputationDetailFrame and ReputationFrame.ReputationDetailFrame.Refresh then
+            hooksecurefunc(ReputationFrame.ReputationDetailFrame, "Refresh", TranslateRetailReputationDetail)
+        end
+    end
+
+    -- The spellbook loads on demand; entries created after the hook carry it
+    if not interfaceHooked.spellBook and SpellBookItemMixin and SpellBookItemMixin.UpdateVisuals then
+        interfaceHooked.spellBook = true
+        hooksecurefunc(SpellBookItemMixin, "UpdateVisuals", TranslateSpellBookItem)
+
+        if SpellBookItemMixin.UpdateSubName then
+            hooksecurefunc(SpellBookItemMixin, "UpdateSubName", TranslateSpellBookItem)
+        end
+    end
+
+    -- Guild and communities window (Blizzard_Communities, on demand)
+    if not interfaceHooked.communities and CommunitiesFrame then
+        interfaceHooked.communities = true
+        CommunitiesFrame:HookScript("OnShow", function(frame)
+            if IsTranslationOn("INTERFACE_TRANSLATIONS") then
+                TranslateStaticTexts(frame)
+            end
+        end)
+    end
 end
 
 InstallInterfaceHooks()
@@ -2203,5 +3426,37 @@ function Matreshka_RefreshTranslations()
 
     if mailFrameHooked and MailFrame:IsShown() then
         ApplyMailFrameStrings()
+    end
+
+    if interfaceHooked.gossip and GossipFrame:IsShown() then
+        TranslateGossipButtons()
+    end
+
+    if interfaceHooked.skills and SkillFrame:IsShown() then
+        TranslateSkillFrame()
+    end
+
+    if interfaceHooked.spellbookTexts then
+        TranslateSpellbookTexts()
+    end
+
+    if interfaceHooked.macros and MacroFrame:IsShown() then
+        TranslateMacroFrame()
+    end
+
+    if interfaceHooked.merchant and MerchantFrame:IsShown() then
+        TranslateMerchantFrame()
+    end
+
+    if interfaceHooked.auction and AuctionFrame:IsShown() then
+        TranslateAuctionFrame()
+    end
+
+    if interfaceHooked.channels and ChannelFrame:IsShown() then
+        TranslateChannelFrame()
+    end
+
+    if interfaceHooked.settings and SettingsPanel:IsShown() then
+        TranslateSettingsPanel()
     end
 end

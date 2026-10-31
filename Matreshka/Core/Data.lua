@@ -11,9 +11,10 @@
 
 Matreshka_DB = Matreshka_DB or {}
 
+-- Retail rows add: item spells (ids of its Use/Equip effects), spell description templates
 local SCHEMA = {
-    item  = { "name", "additional_info" },
-    spell = { "name", "additional_info" },
+    item  = { "name", "additional_info", "spells" },
+    spell = { "name", "additional_info", "template", "aura" },
     npc   = { "name", "subname" },
     quest = { "title", "objective", "description", "progress", "completion", "rewards" },
 }

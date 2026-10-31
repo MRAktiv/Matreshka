@@ -52,9 +52,12 @@ local function ApplyFont()
         end
     end
 
-    -- Hint for font strings other addons/frames create later
-    STANDARD_TEXT_FONT = FONT
-    UNIT_NAME_FONT = FONT
+    -- Hint for font strings other addons/frames create later; retail is left alone, since a
+    -- Blizzard global written by an addon taints the secure code that reads it
+    if WOW_PROJECT_ID ~= WOW_PROJECT_MAINLINE then
+        STANDARD_TEXT_FONT = FONT
+        UNIT_NAME_FONT = FONT
+    end
 end
 
 Matreshka_ApplyFont = ApplyFont
